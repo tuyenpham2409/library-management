@@ -86,7 +86,7 @@
                             <button type="submit" class="btn btn-sm"
                                     th:classappend="${user.cardStatus.name() == 'ACTIVE'} ? 'btn-outline-danger' : 'btn-outline-success'"
                                     th:text="${user.cardStatus.name() == 'ACTIVE'} ? '🔒 Khoá tài khoản' : '🔓 Mở khoá'"
-                                    th:onclick="'return confirm(\'Xác nhận ' + (${user.cardStatus.name() == 'ACTIVE'} ? 'khoá' : 'mở khoá') + ' tài khoản ' + ${user.fullName} + '?\')'">
+                                    onclick="return confirm('Xác nhận thay đổi trạng thái tài khoản này?')">
                             </button>
                         </form>
                         <span class="text-muted small" th:if="${user.role.name() == 'ADMIN'}">—</span>

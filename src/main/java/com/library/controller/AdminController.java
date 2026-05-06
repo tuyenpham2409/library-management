@@ -61,17 +61,12 @@ public class AdminController {
 
     @PostMapping("/loans/{id}/cancel")
     public String cancelLoan(@PathVariable Long id, RedirectAttributes redirectAttrs) {
-        Loan loan = loanService.findById(id)
-                .orElseThrow(() -> new RuntimeException("Loan not found"));
-        // Trả lại available_copies
-        List<LoanDetail> details = loan.getLoanDetails();
-        if (details != null) {
-            for (LoanDetail d : details) {
-                bookService.increaseAvailable(d.getBook().getId());
-            }
+        try {
+            loanService.cancelLoan(id);
+            redirectAttrs.addFlashAttribute("success", "Phiếu mượn đã bị huỷ.");
+        } catch (Exception e) {
+            redirectAttrs.addFlashAttribute("error", "Lỗi: " + e.getMessage());
         }
-        loan.setStatus(LoanStatus.CANCELLED);
-        redirectAttrs.addFlashAttribute("success", "Phiếu mượn đã bị huỷ.");
         return "redirect:/admin/loans/pending";
     }
 
