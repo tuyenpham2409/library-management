@@ -105,6 +105,23 @@ public class LoanService {
     }
 
     /**
+     * Admin huỷ phiếu mượn đang PENDING.
+     * Trả lại available_copies cho từng cuốn.
+     */
+    public void cancelLoan(Long loanId) {
+        Loan loan = loanRepository.findById(loanId)
+                .orElseThrow(() -> new RuntimeException("Loan not found: " + loanId));
+        List<LoanDetail> details = loanDetailRepository.findByLoan(loan);
+        for (LoanDetail d : details) {
+            Book book = d.getBook();
+            book.setAvailableCopies(book.getAvailableCopies() + 1);
+            bookRepository.save(book);
+        }
+        loan.setStatus(LoanStatus.CANCELLED);
+        loanRepository.save(loan);
+    }
+
+    /**
      * Step 6 & 7: Admin xác nhận trả sách từng cuốn.
      */
     public BigDecimal returnBook(Long loanDetailId, BookCondition condition) {
@@ -144,6 +161,16 @@ public class LoanService {
     public boolean renewBook(Long loanDetailId, User user) {
         LoanDetail detail = loanDetailRepository.findById(loanDetailId)
                 .orElseThrow(() -> new RuntimeException("LoanDetail not found: " + loanDetailId));
+
+        // Kiểm tra quyền sở hữu: chỉ người mượn mới được gia hạn
+        if (!detail.getLoan().getUser().getId().equals(user.getId())) {
+            return false;
+        }
+
+        // Chỉ gia hạn được khi đang ở trạng thái BORROWING
+        if (detail.getStatus() != LoanDetailStatus.BORROWING) {
+            return false;
+        }
 
         Book book = detail.getBook();
         Optional<BorrowingRule> ruleOpt = ruleRepository
