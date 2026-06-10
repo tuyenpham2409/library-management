@@ -11,13 +11,13 @@
 <body class="phenikaa-body">
 <nav class="navbar navbar-expand-lg phenikaa-navbar sticky-top">
     <div class="container">
-        <a class="navbar-brand d-flex align-items-center gap-2" th:href="@{/admin/dashboard}">
+        <a class="navbar-brand d-flex align-items-center gap-2" th:href="@{/admin/users}">
             <div class="brand-icon"><i class="bi bi-shield-check"></i></div>
-            <div><span class="brand-name">Phenikaa Admin</span><small class="d-block brand-sub">Quản trị thư viện</small></div>
+            <div><span class="brand-name">Phenikaa Admin</span><small class="d-block brand-sub">Quản trị hệ thống</small></div>
         </a>
         <div class="d-flex gap-2">
-            <a th:href="@{/admin/dashboard}" class="btn btn-outline-light btn-sm"><i class="bi bi-speedometer2 me-1"></i>Dashboard</a>
-            <a th:href="@{/admin/books}" class="btn btn-outline-light btn-sm"><i class="bi bi-books me-1"></i>Sách</a>
+            <a th:href="@{/admin/users}" class="btn btn-outline-light btn-sm"><i class="bi bi-people me-1"></i>Người dùng</a>
+            <a th:href="@{/admin/config}" class="btn btn-outline-light btn-sm"><i class="bi bi-sliders me-1"></i>Phân quyền</a>
             <form th:action="@{/logout}" method="post" class="d-inline">
                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                 <button type="submit" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-right"></i></button>
@@ -26,9 +26,13 @@
     </div>
 </nav>
 
-<div class="container mt-3" th:if="${success != null}">
+<div class="container mt-3" th:if="${success != null or error != null}">
     <div class="alert alert-success alert-dismissible fade show" th:if="${success}">
         <i class="bi bi-check-circle-fill me-2"></i><span th:text="${success}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div class="alert alert-danger alert-dismissible fade show" th:if="${error}">
+        <i class="bi bi-x-circle-fill me-2"></i><span th:text="${error}"></span>
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 </div>
@@ -39,6 +43,37 @@
         <div>
             <h1 class="section-title">Quản lý người dùng</h1>
             <p class="section-subtitle" th:text="${users.size()} + ' tài khoản trong hệ thống'"></p>
+        </div>
+    </div>
+
+    <!-- Tạo tài khoản mới (vd: thủ thư) -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h2 class="h6 fw-bold mb-3"><i class="bi bi-person-plus me-2"></i>Tạo tài khoản mới</h2>
+            <form th:action="@{/admin/users}" method="post" class="row g-2 align-items-end">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <div class="col-md-3">
+                    <label class="form-label small text-muted">Mã số</label>
+                    <input type="text" name="studentCode" class="form-control" required>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-muted">Họ tên</label>
+                    <input type="text" name="fullName" class="form-control" required>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-muted">Vai trò</label>
+                    <select name="role" class="form-select" required>
+                        <option th:each="r : ${roles}" th:value="${r}" th:text="${r}"></option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-muted">Mật khẩu</label>
+                    <input type="text" name="password" class="form-control" required>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-phenikaa w-100"><i class="bi bi-plus-lg me-1"></i>Tạo</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -64,6 +99,7 @@
                             <span th:case="'STUDENT'" class="badge bg-info text-dark">Sinh viên</span>
                             <span th:case="'LECTURER'" class="badge bg-primary">Giảng viên</span>
                             <span th:case="'RESEARCHER'" class="badge bg-purple" style="background:#7c3aed">Nghiên cứu viên</span>
+                            <span th:case="'LIBRARIAN'" class="badge bg-secondary">Thủ thư</span>
                             <span th:case="'ADMIN'" class="badge bg-dark">Admin</span>
                         </span>
                     </td>

@@ -25,12 +25,21 @@ public class Loan {
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 
-    @Column(name = "approved_at")
-    private LocalDateTime approvedAt;
+    // Mã mượn để SV đọc cho thủ thư khi đến lấy sách
+    @Column(name = "pickup_code", length = 10)
+    private String pickupCode;
+
+    // Hạn lấy sách = lúc tạo đơn + 24h. Quá hạn mà chưa lấy thì đơn tự huỷ.
+    @Column(name = "pickup_deadline")
+    private LocalDateTime pickupDeadline;
+
+    // Thời điểm thủ thư xác nhận giao sách
+    @Column(name = "picked_up_at")
+    private LocalDateTime pickedUpAt;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
-    private LoanStatus status = LoanStatus.PENDING;
+    private LoanStatus status = LoanStatus.AWAITING_PICKUP;
 
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<LoanDetail> loanDetails;

@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -37,75 +38,91 @@ public class LoanService {
         this.ruleEngine = ruleEngine;
     }
 
+    private static final SecureRandom RANDOM = new SecureRandom();
+    private static final String CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // bỏ ký tự dễ nhầm (0/O, 1/I)
+    private static final int PICKUP_HOURS = 24; // Hạn đến lấy sách
+
     /**
-     * Step 3: Tạo phiếu mượn từ giỏ sách (sau khi đã validate bằng RuleEngine).
+     * Tạo đơn mượn tự phục vụ: đủ điều kiện thì cho mượn ngay (không cần duyệt).
+     * Sinh mã mượn, giữ chỗ sách và đặt hạn lấy 24h.
      */
     public ValidationResult submitLoan(User user, List<CartItem> cart) {
-        // Validate
+        // Kiểm tra điều kiện mượn
         ValidationResult result = ruleEngine.validate(user, cart);
         if (!result.isValid()) {
             return result;
         }
 
-        // Tạo Loan header
-        Loan loan = new Loan();
-        loan.setUser(user);
-        loan.setStatus(LoanStatus.PENDING);
-        loan.setCreatedAt(LocalDateTime.now());
-        loan = loanRepository.save(loan);
-
-        // Tạo LoanDetails
-        List<LoanDetail> details = new ArrayList<>();
+        // Nạp sách và kiểm tra còn hàng TRƯỚC khi thay đổi gì (tránh giữ chỗ lẻ nếu một cuốn đã hết)
+        List<Book> books = new ArrayList<>();
         for (CartItem item : cart) {
             Book book = bookRepository.findById(item.getBookId())
                     .orElseThrow(() -> new RuntimeException("Sách không tồn tại: " + item.getBookId()));
-
             if (!book.isAvailable()) {
-                loanRepository.delete(loan);
                 return ValidationResult.fail("Sách '" + book.getTitle() + "' hiện không còn sẵn có.");
             }
+            books.add(book);
+        }
 
+        // Tạo đơn ở trạng thái CHỜ LẤY + sinh mã mượn + hạn lấy 24h
+        Loan loan = new Loan();
+        loan.setUser(user);
+        loan.setStatus(LoanStatus.AWAITING_PICKUP);
+        loan.setCreatedAt(LocalDateTime.now());
+        loan.setPickupCode(generatePickupCode());
+        loan.setPickupDeadline(LocalDateTime.now().plusHours(PICKUP_HOURS));
+        loan = loanRepository.save(loan);
+
+        // Tạo chi tiết: giữ chỗ (RESERVED), chưa có hạn trả cho tới khi lấy sách
+        List<LoanDetail> details = new ArrayList<>();
+        for (Book book : books) {
             LoanDetail detail = new LoanDetail();
             detail.setLoan(loan);
             detail.setBook(book);
             detail.setRenewalCount(0);
-            detail.setStatus(LoanDetailStatus.BORROWING);
+            detail.setStatus(LoanDetailStatus.RESERVED);
             detail.setFineAmount(BigDecimal.ZERO);
             details.add(detail);
 
-            // Giảm available_copies ngay khi tạo phiếu
+            // Giữ chỗ: giảm available_copies ngay khi tạo đơn
             book.setAvailableCopies(book.getAvailableCopies() - 1);
             bookRepository.save(book);
         }
         loanDetailRepository.saveAll(details);
 
-        return ValidationResult.ok();
+        return ValidationResult.ok(loan.getPickupCode());
     }
 
     /**
-     * Step 5: Admin duyệt phiếu mượn.
-     * Set due_date theo RuleEngine.
+     * SV tự xác nhận đã nhận sách bằng cách nhập lại mã mượn (không cần thủ thư duyệt).
+     * Kiểm tra: đúng chủ đơn + đơn đang chờ lấy + mã mượn khớp.
+     * Khi hợp lệ: chuyển sang ĐANG MƯỢN và set hạn trả theo RuleEngine.
+     * @return true nếu xác nhận thành công.
      */
-    public void approveLoan(Long loanId) {
-        Loan loan = loanRepository.findById(loanId)
-                .orElseThrow(() -> new RuntimeException("Loan not found: " + loanId));
-        loan.setStatus(LoanStatus.APPROVED);
-        loan.setApprovedAt(LocalDateTime.now());
+    public boolean confirmPickup(Long loanId, User user, String code) {
+        Loan loan = loanRepository.findById(loanId).orElse(null);
+        if (loan == null) return false;
+        if (!loan.getUser().getId().equals(user.getId())) return false;
+        if (loan.getStatus() != LoanStatus.AWAITING_PICKUP) return false;
+        if (code == null || loan.getPickupCode() == null
+                || !loan.getPickupCode().equalsIgnoreCase(code.trim())) return false;
+
+        loan.setStatus(LoanStatus.BORROWED);
+        loan.setPickedUpAt(LocalDateTime.now());
         loanRepository.save(loan);
 
-        LocalDate approvedDate = LocalDate.now();
-        UserRole role = loan.getUser().getRole();
-
-        List<LoanDetail> details = loanDetailRepository.findByLoan(loan);
-        for (LoanDetail detail : details) {
-            LocalDate dueDate = ruleEngine.calculateDueDate(role, detail.getBook().getDocType(), approvedDate);
-            detail.setDueDate(dueDate);
+        LocalDate pickupDate = LocalDate.now();
+        UserRole role = user.getRole();
+        for (LoanDetail detail : loanDetailRepository.findByLoan(loan)) {
+            detail.setDueDate(ruleEngine.calculateDueDate(role, detail.getBook().getDocType(), pickupDate));
+            detail.setStatus(LoanDetailStatus.BORROWING);
             loanDetailRepository.save(detail);
         }
+        return true;
     }
 
     /**
-     * Admin huỷ phiếu mượn đang PENDING.
+     * Huỷ đơn mượn (thủ thư huỷ tay hoặc tự huỷ quá hạn).
      * Trả lại available_copies cho từng cuốn.
      */
     public void cancelLoan(Long loanId) {
@@ -119,6 +136,27 @@ public class LoanService {
         }
         loan.setStatus(LoanStatus.CANCELLED);
         loanRepository.save(loan);
+    }
+
+    /**
+     * Tự huỷ các đơn chờ lấy đã quá hạn 24h. Được scheduler gọi định kỳ.
+     * @return số đơn đã huỷ.
+     */
+    public int cancelExpiredPickups() {
+        List<Loan> expired = loanRepository.findByStatusAndPickupDeadlineBefore(
+                LoanStatus.AWAITING_PICKUP, LocalDateTime.now());
+        for (Loan loan : expired) {
+            cancelLoan(loan.getId());
+        }
+        return expired.size();
+    }
+
+    private String generatePickupCode() {
+        StringBuilder sb = new StringBuilder(6);
+        for (int i = 0; i < 6; i++) {
+            sb.append(CODE_CHARS.charAt(RANDOM.nextInt(CODE_CHARS.length())));
+        }
+        return sb.toString();
     }
 
     /**
@@ -205,6 +243,10 @@ public class LoanService {
         return loanRepository.findByStatus(status);
     }
 
+    public List<Loan> findByUserAndStatus(User user, LoanStatus status) {
+        return loanRepository.findByUserAndStatus(user, status);
+    }
+
     public List<LoanDetail> findActiveByUser(User user) {
         return loanDetailRepository.findActiveBorrowingByUserId(user.getId());
     }
@@ -222,12 +264,12 @@ public class LoanService {
     }
 
     // Dashboard stats
-    public long countPendingLoans() {
-        return loanRepository.countByStatus(LoanStatus.PENDING);
+    public long countAwaitingPickup() {
+        return loanRepository.countByStatus(LoanStatus.AWAITING_PICKUP);
     }
 
     public long countActiveLoans() {
-        return loanRepository.countByStatus(LoanStatus.APPROVED);
+        return loanRepository.countByStatus(LoanStatus.BORROWED);
     }
 
     public long countBorrowingDetails() {

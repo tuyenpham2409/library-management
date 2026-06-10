@@ -25,7 +25,10 @@ public class AuthController {
         User user = userRepository.findByStudentCode(studentCode).orElse(null);
         if (user == null) return "redirect:/login";
 
+        // Admin quản lý người dùng/phân quyền; Thủ thư vận hành (dashboard)
         if (user.getRole() == UserRole.ADMIN) {
+            return "redirect:/admin/users";
+        } else if (user.getRole() == UserRole.LIBRARIAN) {
             return "redirect:/admin/dashboard";
         } else {
             return "redirect:/client/home";

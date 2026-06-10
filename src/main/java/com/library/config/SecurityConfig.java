@@ -34,8 +34,10 @@ public class SecurityConfig {
                 .requestMatchers("/login", "/css/**", "/images/**", "/error").permitAll()
                 // H2 console (development only)
                 .requestMatchers("/h2-console/**").permitAll()
-                // Admin area
-                .requestMatchers("/admin/**").hasRole("ADMIN")
+                // Admin: chỉ quản lý người dùng + phân quyền/hệ thống
+                .requestMatchers("/admin/config/**", "/admin/users/**").hasRole("ADMIN")
+                // Thủ thư: toàn bộ vận hành (đơn mượn, trả, quản lý sách)
+                .requestMatchers("/admin/**").hasRole("LIBRARIAN")
                 // Client area
                 .requestMatchers("/client/**").hasAnyRole("STUDENT", "LECTURER", "RESEARCHER")
                 // Root redirect

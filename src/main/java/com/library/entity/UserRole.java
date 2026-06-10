@@ -1,5 +1,5 @@
 package com.library.entity;
 
 public enum UserRole {
-    STUDENT, LECTURER, RESEARCHER, ADMIN
+    STUDENT, LECTURER, RESEARCHER, LIBRARIAN, ADMIN
 }

@@ -8,6 +8,7 @@ import com.library.repository.LoanDetailRepository;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -83,7 +84,8 @@ public class RuleEngine {
             }
 
             BorrowingRule rule = ruleOpt.get();
-            if (rule.getMaxQuantity() == 0) {
+            // Loại tài liệu bị admin ẩn hoặc giới hạn 0 → không được mượn
+            if (Boolean.FALSE.equals(rule.getVisible()) || rule.getMaxQuantity() == 0) {
                 errors.add("Bạn không có quyền mượn tài liệu loại: " +
                            getDocTypeDisplayName(docType));
                 continue;
@@ -133,7 +135,7 @@ public class RuleEngine {
                 ? detail.getReturnDate().toLocalDate()
                 : LocalDate.now();
         if (!returnDate.isAfter(detail.getDueDate())) return 0;
-        long daysOverdue = detail.getDueDate().until(returnDate).getDays();
+        long daysOverdue = ChronoUnit.DAYS.between(detail.getDueDate(), returnDate);
         return daysOverdue * FINE_PER_DAY;
     }
 

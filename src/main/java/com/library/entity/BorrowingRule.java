@@ -42,4 +42,11 @@ public class BorrowingRule {
      */
     @Column(name = "renewal_days")
     private Integer renewalDays;
+
+    /**
+     * Có cho vai trò này nhìn thấy/mượn loại tài liệu này không.
+     * Admin bật/tắt trực tiếp trên trang cấu hình (không sửa code).
+     */
+    @Column(name = "visible", nullable = false)
+    private Boolean visible = true;
 }

@@ -38,6 +38,9 @@ logs/
 .DS_Store
 Thumbs.db
 
+# LibreOffice/Office lock files
+.~lock.*#
+
 # Environment / secrets
 .env
 *.env.local

@@ -57,8 +57,8 @@
                 </li>
             </ul>
 
-            <!-- ADMIN NAV -->
-            <ul class="navbar-nav me-auto" sec:authorize="hasRole('ADMIN')">
+            <!-- ADMIN / LIBRARIAN NAV -->
+            <ul class="navbar-nav me-auto" sec:authorize="hasAnyRole('ADMIN','LIBRARIAN')">
                 <li class="nav-item">
                     <a class="nav-link" th:href="@{/admin/dashboard}">
                         <i class="bi bi-speedometer2 me-1"></i>Dashboard
@@ -66,11 +66,11 @@
                 </li>
                 <li class="nav-item dropdown">
                     <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                        <i class="bi bi-file-earmark-text me-1"></i>Phiếu mượn
+                        <i class="bi bi-file-earmark-text me-1"></i>Đơn mượn
                     </a>
                     <ul class="dropdown-menu">
                         <li><a class="dropdown-item" th:href="@{/admin/loans/pending}">
-                            <i class="bi bi-clock-history me-2"></i>Chờ duyệt</a></li>
+                            <i class="bi bi-box-seam me-2"></i>Đơn chờ lấy</a></li>
                         <li><a class="dropdown-item" th:href="@{/admin/loans/active}">
                             <i class="bi bi-arrow-return-left me-2"></i>Đang mượn</a></li>
                     </ul>
@@ -80,9 +80,14 @@
                         <i class="bi bi-books me-1"></i>Sách
                     </a>
                 </li>
-                <li class="nav-item">
+                <li class="nav-item" sec:authorize="hasRole('ADMIN')">
                     <a class="nav-link" th:href="@{/admin/users}">
                         <i class="bi bi-people me-1"></i>Người dùng
+                    </a>
+                </li>
+                <li class="nav-item" sec:authorize="hasRole('ADMIN')">
+                    <a class="nav-link" th:href="@{/admin/config}">
+                        <i class="bi bi-sliders me-1"></i>Phân quyền
                     </a>
                 </li>
             </ul>
@@ -92,7 +97,7 @@
                 <div class="user-info d-none d-lg-flex align-items-center gap-2">
                     <div class="user-avatar">
                         <i class="bi bi-person-circle" sec:authorize="hasAnyRole('STUDENT','LECTURER','RESEARCHER')"></i>
-                        <i class="bi bi-shield-check" sec:authorize="hasRole('ADMIN')"></i>
+                        <i class="bi bi-shield-check" sec:authorize="hasAnyRole('ADMIN','LIBRARIAN')"></i>
                     </div>
                     <div>
                         <span class="user-name" sec:authentication="name">User</span>
@@ -100,6 +105,7 @@
                         <span class="badge role-badge-lecturer ms-1" sec:authorize="hasRole('LECTURER')">GV</span>
                         <span class="badge role-badge-researcher ms-1" sec:authorize="hasRole('RESEARCHER')">NC</span>
                         <span class="badge role-badge-admin ms-1" sec:authorize="hasRole('ADMIN')">Admin</span>
+                        <span class="badge role-badge-admin ms-1" sec:authorize="hasRole('LIBRARIAN') and !hasRole('ADMIN')">Thủ thư</span>
                     </div>
                 </div>
                 <form th:action="@{/logout}" method="post">

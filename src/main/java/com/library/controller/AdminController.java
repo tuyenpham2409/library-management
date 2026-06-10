@@ -1,10 +1,12 @@
 package com.library.controller;
 
 import com.library.dto.BookForm;
+import com.library.dto.RuleConfigForm;
 
 import com.library.entity.*;
 import com.library.service.BookService;
 import com.library.service.LoanService;
+import com.library.service.RuleService;
 import com.library.service.UserService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -20,43 +22,35 @@ public class AdminController {
     private final BookService bookService;
     private final LoanService loanService;
     private final UserService userService;
+    private final RuleService ruleService;
 
     public AdminController(BookService bookService, LoanService loanService,
-                           UserService userService) {
+                           UserService userService, RuleService ruleService) {
         this.bookService = bookService;
         this.loanService = loanService;
         this.userService = userService;
+        this.ruleService = ruleService;
     }
 
     // =========== DASHBOARD ===========
 
     @GetMapping({"/", "/dashboard"})
     public String dashboard(Model model) {
-        model.addAttribute("pendingCount", loanService.countPendingLoans());
+        model.addAttribute("awaitingCount", loanService.countAwaitingPickup());
         model.addAttribute("activeCount", loanService.countActiveLoans());
         model.addAttribute("overdueList", loanService.findAllOverdue());
         model.addAttribute("borrowingCount", loanService.countBorrowingDetails());
         return "admin/dashboard";
     }
 
-    // =========== QUẢN LÝ PHIẾU MƯỢN ===========
+    // =========== QUẢN LÝ ĐƠN MƯỢN (THỦ THƯ) ===========
 
+    // Thủ thư chỉ xem danh sách để chuẩn bị sách; SV tự xác nhận nhận sách bằng mã mượn.
     @GetMapping("/loans/pending")
-    public String pendingLoans(Model model) {
-        List<Loan> loans = loanService.findByStatus(LoanStatus.PENDING);
+    public String awaitingLoans(Model model) {
+        List<Loan> loans = loanService.findByStatus(LoanStatus.AWAITING_PICKUP);
         model.addAttribute("loans", loans);
         return "admin/loans-pending";
-    }
-
-    @PostMapping("/loans/{id}/approve")
-    public String approveLoan(@PathVariable Long id, RedirectAttributes redirectAttrs) {
-        try {
-            loanService.approveLoan(id);
-            redirectAttrs.addFlashAttribute("success", "Phiếu mượn đã được duyệt!");
-        } catch (Exception e) {
-            redirectAttrs.addFlashAttribute("error", "Lỗi: " + e.getMessage());
-        }
-        return "redirect:/admin/loans/pending";
     }
 
     @PostMapping("/loans/{id}/cancel")
@@ -148,12 +142,26 @@ public class AdminController {
         return "redirect:/admin/books";
     }
 
-    // =========== QUẢN LÝ USERS ===========
+    // =========== QUẢN LÝ USERS (CHỈ ADMIN) ===========
 
     @GetMapping("/users")
     public String listUsers(Model model) {
         model.addAttribute("users", userService.findAll());
+        model.addAttribute("roles", UserRole.values());
         return "admin/users";
+    }
+
+    @PostMapping("/users")
+    public String createUser(@RequestParam String studentCode, @RequestParam String fullName,
+                             @RequestParam UserRole role, @RequestParam String password,
+                             RedirectAttributes redirectAttrs) {
+        try {
+            userService.create(studentCode, fullName, role, password);
+            redirectAttrs.addFlashAttribute("success", "Đã tạo tài khoản '" + studentCode + "'.");
+        } catch (Exception e) {
+            redirectAttrs.addFlashAttribute("error", "Không tạo được tài khoản (mã số có thể đã tồn tại).");
+        }
+        return "redirect:/admin/users";
     }
 
     @PostMapping("/users/{id}/toggle-status")
@@ -161,5 +169,22 @@ public class AdminController {
         userService.toggleCardStatus(id);
         redirectAttrs.addFlashAttribute("success", "Đã cập nhật trạng thái tài khoản.");
         return "redirect:/admin/users";
+    }
+
+    // =========== PHÂN QUYỀN / CẤU HÌNH QUY TẮC (CHỈ ADMIN) ===========
+
+    @GetMapping("/config")
+    public String configPage(Model model) {
+        RuleConfigForm form = new RuleConfigForm();
+        form.setRules(ruleService.findAllOrdered());
+        model.addAttribute("form", form);
+        return "admin/config";
+    }
+
+    @PostMapping("/config")
+    public String saveConfig(@ModelAttribute RuleConfigForm form, RedirectAttributes redirectAttrs) {
+        ruleService.updateRules(form.getRules());
+        redirectAttrs.addFlashAttribute("success", "Đã lưu cấu hình quy tắc mượn.");
+        return "redirect:/admin/config";
     }
 }

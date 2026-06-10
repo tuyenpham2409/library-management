@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Service
 @Transactional
@@ -30,6 +31,16 @@ public class BookService {
 
     public List<Book> search(String keyword, DocType docType, boolean availableOnly) {
         return bookRepository.searchBooks(keyword, docType, availableOnly);
+    }
+
+    /**
+     * Tìm sách nhưng chỉ trả về các loại tài liệu mà vai trò được phép xem.
+     * Dùng cho phía client để tôn trọng cấu hình ẩn/hiện của admin.
+     */
+    public List<Book> search(String keyword, DocType docType, boolean availableOnly, Set<DocType> allowed) {
+        return bookRepository.searchBooks(keyword, docType, availableOnly).stream()
+                .filter(b -> allowed.contains(b.getDocType()))
+                .toList();
     }
 
     public Book save(BookForm form) {

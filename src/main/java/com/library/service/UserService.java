@@ -2,7 +2,9 @@ package com.library.service;
 
 import com.library.entity.CardStatus;
 import com.library.entity.User;
+import com.library.entity.UserRole;
 import com.library.repository.UserRepository;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,9 +16,22 @@ import java.util.Optional;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+    }
+
+    /** Admin tạo tài khoản mới (vd: thủ thư) và gán vai trò ngay trên giao diện. */
+    public void create(String studentCode, String fullName, UserRole role, String rawPassword) {
+        User user = new User();
+        user.setStudentCode(studentCode);
+        user.setFullName(fullName);
+        user.setRole(role);
+        user.setCardStatus(CardStatus.ACTIVE);
+        user.setPasswordHash(passwordEncoder.encode(rawPassword));
+        userRepository.save(user);
     }
 
     public List<User> findAll() {

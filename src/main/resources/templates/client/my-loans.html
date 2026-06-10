@@ -59,6 +59,47 @@
         </div>
     </div>
 
+    <!-- ĐƠN CHỜ LẤY (có mã mượn) -->
+    <div class="mb-5" th:if="${!awaitingLoans.isEmpty()}">
+        <h2 class="h5 fw-bold text-dark mb-3"><i class="bi bi-box-seam me-2"></i>Đơn chờ lấy</h2>
+        <div class="card mb-3" th:each="loan : ${awaitingLoans}">
+            <div class="card-body">
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
+                    <div>
+                        <span class="badge bg-dark fs-6 px-3">
+                            <i class="bi bi-upc-scan me-1"></i>Mã mượn: <span th:text="${loan.pickupCode}"></span>
+                        </span>
+                        <div class="small text-muted mt-2">
+                            Đến thư viện lấy sách trước:
+                            <span class="text-danger fw-semibold"
+                                  th:text="${#temporals.format(loan.pickupDeadline, 'dd/MM/yyyy HH:mm')}"></span>
+                            <span class="d-block">(Quá hạn 24h chưa lấy, đơn sẽ tự huỷ.)</span>
+                        </div>
+                    </div>
+                    <ul class="mb-0 small">
+                        <li th:each="d : ${loan.loanDetails}" th:text="${d.book.title}"></li>
+                    </ul>
+                </div>
+                <hr>
+                <!-- SV tự xác nhận đã nhận sách bằng cách nhập lại mã mượn -->
+                <form th:action="@{/client/loans/{id}/pickup(id=${loan.id})}" method="post"
+                      class="row g-2 align-items-end">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <div class="col-sm-5">
+                        <label class="form-label small text-muted">Nhập lại mã mượn để xác nhận đã nhận sách</label>
+                        <input type="text" name="code" class="form-control text-uppercase"
+                               placeholder="VD: QVWJ5C" required>
+                    </div>
+                    <div class="col-sm-auto">
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-lg me-1"></i>Tôi đã nhận sách
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- ĐANG MƯỢN -->
     <div class="mb-5">
         <h2 class="h5 fw-bold text-primary mb-3"><i class="bi bi-clock-history me-2"></i>Đang mượn</h2>
@@ -139,11 +180,11 @@
                             th:data-bs-target="'#loan' + ${loan.id}">
                         <div class="d-flex w-100 align-items-center gap-3">
                             <span class="badge"
-                                  th:classappend="${loan.status.name() == 'PENDING' ? 'bg-warning text-dark' :
-                                                   loan.status.name() == 'APPROVED' ? 'bg-primary' :
+                                  th:classappend="${loan.status.name() == 'AWAITING_PICKUP' ? 'bg-warning text-dark' :
+                                                   loan.status.name() == 'BORROWED' ? 'bg-primary' :
                                                    loan.status.name() == 'RETURNED' ? 'bg-success' : 'bg-secondary'}"
-                                  th:text="${loan.status.name() == 'PENDING' ? '⏳ Chờ duyệt' :
-                                            loan.status.name() == 'APPROVED' ? '📚 Đang mượn' :
+                                  th:text="${loan.status.name() == 'AWAITING_PICKUP' ? '⏳ Chờ lấy' :
+                                            loan.status.name() == 'BORROWED' ? '📚 Đang mượn' :
                                             loan.status.name() == 'RETURNED' ? '✅ Đã trả' : '❌ Đã huỷ'}">
                             </span>
                             <span class="text-muted small" th:text="'Phiếu #' + ${loan.id}"></span>
@@ -169,6 +210,7 @@
                                         <span th:if="${d.returnDate == null}" class="text-muted">--</span>
                                     </td>
                                     <td>
+                                        <span class="badge bg-warning text-dark" th:if="${d.status.name() == 'RESERVED'}">Chờ lấy</span>
                                         <span class="badge bg-info text-dark" th:if="${d.status.name() == 'BORROWING'}">Đang mượn</span>
                                         <span class="badge bg-success" th:if="${d.status.name() == 'RETURNED'}">Đã trả</span>
                                         <span class="badge bg-danger" th:if="${d.status.name() == 'OVERDUE'}">Quá hạn</span>

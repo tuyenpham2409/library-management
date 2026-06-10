@@ -6,11 +6,13 @@
 
 -- USERS
 INSERT INTO users (id, student_code, full_name, password_hash, role, card_status, created_at) VALUES
-(1, 'admin',        'Nguyen Van Admin',           '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'ADMIN',      'ACTIVE', '2025-09-01 08:00:00'),
-(2, 'student01',    'Tran Thi Sinh Vien',          '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'STUDENT',    'ACTIVE', '2025-09-01 08:00:00'),
-(3, 'student02',    'Le Van Bi Khoa',              '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'STUDENT',    'LOCKED', '2025-09-01 08:00:00'),
-(4, 'lecturer01',   'PGS.TS. Pham Van Giang Vien', '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'LECTURER',   'ACTIVE', '2025-09-01 08:00:00'),
-(5, 'researcher01', 'TS. Hoang Thi Nghien Cuu',    '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'RESEARCHER', 'ACTIVE', '2025-09-01 08:00:00');
+(1, 'admin',        'Nguyen Van Admin',           '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'ADMIN',      'ACTIVE', '2026-03-01 08:00:00'),
+(2, 'student01',    'Tran Thi Sinh Vien',          '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'STUDENT',    'ACTIVE', '2026-03-01 08:00:00'),
+(3, 'student02',    'Le Van Bi Khoa',              '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'STUDENT',    'ACTIVE', '2026-03-01 08:00:00'),
+(4, 'lecturer01',   'PGS.TS. Pham Van Giang Vien', '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'LECTURER',   'ACTIVE', '2026-03-01 08:00:00'),
+(5, 'researcher01', 'TS. Hoang Thi Nghien Cuu',    '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'RESEARCHER', 'ACTIVE', '2026-03-01 08:00:00'),
+(6, 'student03',    'Pham Minh Tuyen',             '$2a$12$mXAkEAWvOTDeXveyavkso.vPtJWvLN7hEsEO9dMYG2zg7XUSVDd2O', 'STUDENT',    'ACTIVE', '2026-05-06 23:27:15'),
+(7, 'librarian01',  'Do Thi Thu Thu',              '$2b$10$XQoWyXc0qhA0zv9TEn6WK.48bSdFr/l428Bo.POvlBHRZZEIphkGS', 'LIBRARIAN',  'ACTIVE', '2026-03-01 08:00:00');
 
 -- BOOKS (10 cuon du 4 loai)
 INSERT INTO books (id, title, author, isbn, category, doc_type, total_copies, available_copies, classification_code, description, publisher, publish_year) VALUES
@@ -26,23 +28,24 @@ INSERT INTO books (id, title, author, isbn, category, doc_type, total_copies, av
 (10, 'Luan An Tien Si Mau 2024',    'Nhieu tac gia',       'PHEN-LUANAN-2024',  'Luan an noi sinh',    'RESTRICTED',      2, 2, 'NS.001',   'Tuyen tap luan an tien si duoc luu tru tai thu vien Phenikaa. Chi doc tai cho.', 'Thu vien Phenikaa', 2024);
 
 -- BORROWING RULES (12 dong theo ma tran chinh xac tu PDF)
+-- Cot visible: TRUE = vai tro duoc nhin thay/muon loai TL nay (admin bat/tat tren UI)
 -- STUDENT
-INSERT INTO borrowing_rules (id, user_role, doc_type, max_quantity, borrow_days, max_renewals, renewal_days) VALUES
-(1,  'STUDENT',    'TEXTBOOK',        10, 150, 0, NULL),
-(2,  'STUDENT',    'SPECIALIZED_REF',  5,  90, 2,    3),
-(3,  'STUDENT',    'GENERAL_REF',      3,  15, 0, NULL),
-(4,  'STUDENT',    'RESTRICTED',       0,   0, 0, NULL);
+INSERT INTO borrowing_rules (id, user_role, doc_type, max_quantity, borrow_days, max_renewals, renewal_days, visible) VALUES
+(1,  'STUDENT',    'TEXTBOOK',        10, 150, 0, NULL, TRUE),
+(2,  'STUDENT',    'SPECIALIZED_REF',  5,  90, 2,    3, TRUE),
+(3,  'STUDENT',    'GENERAL_REF',      3,  15, 0, NULL, TRUE),
+(4,  'STUDENT',    'RESTRICTED',       0,   0, 0, NULL, TRUE);
 
 -- LECTURER
-INSERT INTO borrowing_rules (id, user_role, doc_type, max_quantity, borrow_days, max_renewals, renewal_days) VALUES
-(5,  'LECTURER',   'TEXTBOOK',        10, NULL, 0, NULL),
-(6,  'LECTURER',   'SPECIALIZED_REF',  5, NULL, 0, NULL),
-(7,  'LECTURER',   'GENERAL_REF',      5,   15, 2,    3),
-(8,  'LECTURER',   'RESTRICTED',       0,    0, 0, NULL);
+INSERT INTO borrowing_rules (id, user_role, doc_type, max_quantity, borrow_days, max_renewals, renewal_days, visible) VALUES
+(5,  'LECTURER',   'TEXTBOOK',        10, NULL, 0, NULL, TRUE),
+(6,  'LECTURER',   'SPECIALIZED_REF',  5, NULL, 0, NULL, TRUE),
+(7,  'LECTURER',   'GENERAL_REF',      5,   15, 2,    3, TRUE),
+(8,  'LECTURER',   'RESTRICTED',       0,    0, 0, NULL, TRUE);
 
 -- RESEARCHER
-INSERT INTO borrowing_rules (id, user_role, doc_type, max_quantity, borrow_days, max_renewals, renewal_days) VALUES
-(9,  'RESEARCHER', 'TEXTBOOK',         5, 150, 0, NULL),
-(10, 'RESEARCHER', 'SPECIALIZED_REF', 10,  30, 2,    3),
-(11, 'RESEARCHER', 'GENERAL_REF',     10,  15, 0, NULL),
-(12, 'RESEARCHER', 'RESTRICTED',       0,   0, 0, NULL);
+INSERT INTO borrowing_rules (id, user_role, doc_type, max_quantity, borrow_days, max_renewals, renewal_days, visible) VALUES
+(9,  'RESEARCHER', 'TEXTBOOK',         5, 150, 0, NULL, TRUE),
+(10, 'RESEARCHER', 'SPECIALIZED_REF', 10,  30, 2,    3, TRUE),
+(11, 'RESEARCHER', 'GENERAL_REF',     10,  15, 0, NULL, TRUE),
+(12, 'RESEARCHER', 'RESTRICTED',       0,   0, 0, NULL, TRUE);
