@@ -50,6 +50,22 @@ public class UserService {
         return userRepository.save(user);
     }
 
+    /**
+     * Người dùng tự đổi mật khẩu sau khi đăng nhập bằng mật khẩu mặc định.
+     * Phải nhập đúng mật khẩu hiện tại mới đổi được.
+     * @return true nếu đổi thành công.
+     */
+    public boolean changePassword(String studentCode, String currentRaw, String newRaw) {
+        User user = userRepository.findByStudentCode(studentCode)
+                .orElseThrow(() -> new RuntimeException("User not found: " + studentCode));
+        if (!passwordEncoder.matches(currentRaw, user.getPasswordHash())) {
+            return false;
+        }
+        user.setPasswordHash(passwordEncoder.encode(newRaw));
+        userRepository.save(user);
+        return true;
+    }
+
     @Transactional
     public void toggleCardStatus(Long userId) {
         User user = userRepository.findById(userId)
