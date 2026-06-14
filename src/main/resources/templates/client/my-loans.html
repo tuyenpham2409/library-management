@@ -1,46 +1,10 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
-<head>
-    <title>Phiếu mượn của tôi — Thư viện Phenikaa</title>
-    <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" th:href="@{/css/style.css}">
-</head>
+<head th:replace="~{fragments/common :: head('Phiếu mượn của tôi')}"></head>
 <body class="phenikaa-body">
-<!-- Navbar -->
-<nav class="navbar navbar-expand-lg phenikaa-navbar sticky-top">
-    <div class="container">
-        <a class="navbar-brand d-flex align-items-center gap-2" th:href="@{/}">
-            <div class="brand-icon"><i class="bi bi-book-half"></i></div>
-            <div><span class="brand-name">Phenikaa Library</span><small class="d-block brand-sub">Hệ thống thư viện số</small></div>
-        </a>
-        <div class="d-flex align-items-center gap-2">
-            <a th:href="@{/client/home}" class="btn btn-outline-light btn-sm"><i class="bi bi-search me-1"></i>Tìm kiếm</a>
-            <a th:href="@{/client/cart}" class="btn btn-outline-light btn-sm position-relative">
-                <i class="bi bi-cart3 me-1"></i>Giỏ (<span th:text="${cartCount != null ? cartCount : 0}">0</span>)
-            </a>
-            <a th:href="@{/account/password}" class="btn btn-outline-light btn-sm"><i class="bi bi-key me-1"></i>Đổi mật khẩu</a>
-            <form th:action="@{/logout}" method="post" class="d-inline">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <button type="submit" class="btn btn-outline-light btn-sm"><i class="bi bi-box-arrow-right"></i></button>
-            </form>
-        </div>
-    </div>
-</nav>
 
-<!-- Flash messages -->
-<div class="container mt-3" th:if="${success != null or error != null}">
-    <div class="alert alert-success alert-dismissible fade show" th:if="${success}">
-        <i class="bi bi-check-circle-fill me-2"></i><span th:text="${success}"></span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    <div class="alert alert-danger alert-dismissible fade show" th:if="${error}">
-        <i class="bi bi-x-circle-fill me-2"></i><span th:text="${error}"></span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-</div>
+<nav th:replace="~{fragments/navbar :: clientNav('loans')}"></nav>
+<div th:replace="~{fragments/common :: messages}"></div>
 
 <main class="container py-4">
     <div class="section-header mb-4">
@@ -51,13 +15,9 @@
         </div>
     </div>
 
-    <!-- OVERDUE WARNING -->
     <div class="alert alert-danger d-flex align-items-start gap-2 mb-4" th:if="${hasOverdue}">
         <i class="bi bi-exclamation-triangle-fill fs-4"></i>
-        <div>
-            <strong>⚠️ Bạn có sách quá hạn trả!</strong><br>
-            Vui lòng mang sách đến thư viện để trả. Chức năng mượn mới bị tạm khoá cho đến khi trả đủ.
-        </div>
+        <div><strong>⚠️ Bạn có sách quá hạn trả!</strong><br>Vui lòng mang sách đến thư viện để trả. Chức năng mượn mới bị tạm khoá cho đến khi trả đủ.</div>
     </div>
 
     <!-- ĐƠN CHỜ LẤY (có mã mượn) -->
@@ -67,36 +27,34 @@
             <div class="card-body">
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-3">
                     <div>
-                        <span class="badge bg-dark fs-6 px-3">
-                            <i class="bi bi-upc-scan me-1"></i>Mã mượn: <span th:text="${loan.pickupCode}"></span>
-                        </span>
+                        <span class="badge bg-dark fs-6 px-3"><i class="bi bi-upc-scan me-1"></i>Mã mượn: <span th:text="${loan.pickupCode}"></span></span>
                         <div class="small text-muted mt-2">
                             Đến thư viện lấy sách trước:
-                            <span class="text-danger fw-semibold"
-                                  th:text="${#temporals.format(loan.pickupDeadline, 'dd/MM/yyyy HH:mm')}"></span>
+                            <span class="text-danger fw-semibold" th:text="${#temporals.format(loan.pickupDeadline, 'dd/MM/yyyy HH:mm')}"></span>
                             <span class="d-block">(Quá hạn 24h chưa lấy, đơn sẽ tự huỷ.)</span>
                         </div>
                     </div>
-                    <ul class="mb-0 small">
-                        <li th:each="d : ${loan.loanDetails}" th:text="${d.book.title}"></li>
-                    </ul>
+                    <ul class="mb-0 small"><li th:each="d : ${loan.loanDetails}" th:text="${d.book.title}"></li></ul>
                 </div>
                 <hr>
-                <!-- SV tự xác nhận đã nhận sách bằng cách nhập lại mã mượn -->
-                <form th:action="@{/client/loans/{id}/pickup(id=${loan.id})}" method="post"
-                      class="row g-2 align-items-end">
-                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                    <div class="col-sm-5">
-                        <label class="form-label small text-muted">Nhập lại mã mượn để xác nhận đã nhận sách</label>
-                        <input type="text" name="code" class="form-control text-uppercase"
-                               placeholder="VD: QVWJ5C" required>
-                    </div>
-                    <div class="col-sm-auto">
-                        <button type="submit" class="btn btn-success">
-                            <i class="bi bi-check-lg me-1"></i>Tôi đã nhận sách
-                        </button>
-                    </div>
-                </form>
+                <div class="d-flex flex-wrap gap-2 align-items-end justify-content-between">
+                    <form th:action="@{/client/loans/{id}/pickup(id=${loan.id})}" method="post" class="row g-2 align-items-end flex-grow-1">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                        <div class="col-sm-5">
+                            <label class="form-label small text-muted">Nhập lại mã mượn để xác nhận đã nhận sách</label>
+                            <input type="text" name="code" class="form-control text-uppercase" placeholder="VD: QVWJ5C" required>
+                        </div>
+                        <div class="col-sm-auto">
+                            <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Tôi đã nhận sách</button>
+                        </div>
+                    </form>
+                    <!-- Bạn đọc tự huỷ (chỉ khi chưa nhận sách) -->
+                    <form th:if="${canCancelOwn}" th:action="@{/client/loans/{id}/cancel(id=${loan.id})}" method="post"
+                          onsubmit="return confirm('Huỷ đơn mượn này?')">
+                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                        <button type="submit" class="btn btn-outline-danger"><i class="bi bi-x-lg me-1"></i>Huỷ đơn</button>
+                    </form>
+                </div>
             </div>
         </div>
     </div>
@@ -104,22 +62,11 @@
     <!-- ĐANG MƯỢN -->
     <div class="mb-5">
         <h2 class="h5 fw-bold text-primary mb-3"><i class="bi bi-clock-history me-2"></i>Đang mượn</h2>
-
-        <div th:if="${activeDetails.isEmpty()}" class="empty-state py-3">
-            <p class="text-muted mb-0">Bạn hiện không có sách nào đang mượn.</p>
-        </div>
-
+        <div th:if="${activeDetails.isEmpty()}" class="empty-state py-3"><p class="text-muted mb-0">Bạn hiện không có sách nào đang mượn.</p></div>
         <div class="card table-card" th:if="${!activeDetails.isEmpty()}">
             <table class="table table-hover mb-0">
                 <thead>
-                    <tr>
-                        <th>Tên sách</th>
-                        <th>Loại TL</th>
-                        <th>Hạn trả</th>
-                        <th>Trạng thái</th>
-                        <th>Số lần đã GH</th>
-                        <th>Gia hạn</th>
-                    </tr>
+                    <tr><th>Tên sách</th><th>Loại TL</th><th>Mã mượn</th><th>Hạn trả</th><th>Trạng thái</th><th>Số lần đã GH</th><th>Gia hạn</th></tr>
                 </thead>
                 <tbody>
                     <tr th:each="detail : ${activeDetails}"
@@ -136,28 +83,25 @@
                             </span>
                         </td>
                         <td>
+                            <span class="badge bg-dark" th:if="${detail.loan.pickupCode != null}" th:text="${detail.loan.pickupCode}"></span>
+                            <span class="badge bg-info text-dark" th:if="${detail.loan.inHouse}"><i class="bi bi-eyeglasses me-1"></i>Đọc tại chỗ</span>
+                        </td>
+                        <td>
                             <span th:if="${detail.dueDate != null}" th:text="${#temporals.format(detail.dueDate, 'dd/MM/yyyy')}">--</span>
                             <span th:if="${detail.dueDate == null}" class="text-success">Không giới hạn</span>
                         </td>
                         <td>
-                            <span class="overdue-badge" th:if="${detail.overdue}">
-                                <i class="bi bi-exclamation-circle me-1"></i>
-                                Quá hạn <span th:text="${detail.daysOverdue}"></span> ngày
-                            </span>
-                            <span class="due-soon-badge" th:if="${detail.dueSoon and !detail.overdue}">
-                                <i class="bi bi-clock me-1"></i>
-                                Còn <span th:text="${detail.daysRemaining}"></span> ngày
-                            </span>
+                            <span class="overdue-badge" th:if="${detail.overdue}"><i class="bi bi-exclamation-circle me-1"></i>Quá hạn <span th:text="${detail.daysOverdue}"></span> ngày</span>
+                            <span class="due-soon-badge" th:if="${detail.dueSoon and !detail.overdue}"><i class="bi bi-clock me-1"></i>Còn <span th:text="${detail.daysRemaining}"></span> ngày</span>
                             <span class="badge bg-success" th:if="${!detail.overdue and !detail.dueSoon}">Đúng hạn</span>
                         </td>
                         <td class="text-center" th:text="${detail.renewalCount} + ' lần'"></td>
                         <td>
-                            <form th:action="@{/client/loans/renew/{id}(id=${detail.id})}" method="post">
+                            <form th:if="${canRenew}" th:action="@{/client/loans/renew/{id}(id=${detail.id})}" method="post">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                <button type="submit" class="btn btn-outline-success btn-sm">
-                                    <i class="bi bi-arrow-clockwise me-1"></i>Gia hạn
-                                </button>
+                                <button type="submit" class="btn btn-outline-success btn-sm"><i class="bi bi-arrow-clockwise me-1"></i>Gia hạn</button>
                             </form>
+                            <span th:unless="${canRenew}" class="text-muted small">—</span>
                         </td>
                     </tr>
                 </tbody>
@@ -165,39 +109,44 @@
         </div>
     </div>
 
-    <!-- LỊCH SỬ PHIẾU MƯỢN -->
+    <!-- LỊCH SỬ PHIẾU MƯỢN + FILTER -->
     <div>
-        <h2 class="h5 fw-bold text-secondary mb-3"><i class="bi bi-clock-history me-2"></i>Lịch sử phiếu mượn</h2>
-
-        <div th:if="${loans.isEmpty()}" class="empty-state py-3">
-            <p class="text-muted mb-0">Bạn chưa có phiếu mượn nào.</p>
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+            <h2 class="h5 fw-bold text-secondary mb-0"><i class="bi bi-clock-history me-2"></i>Lịch sử phiếu mượn</h2>
+            <div class="d-flex flex-wrap gap-1">
+                <a th:href="@{/client/my-loans}" class="btn btn-sm" th:classappend="${selectedStatus == null} ? 'btn-phenikaa' : 'btn-outline-secondary'">Tất cả</a>
+                <a th:href="@{/client/my-loans(status='AWAITING_PICKUP')}" class="btn btn-sm" th:classappend="${selectedStatus != null and selectedStatus.name() == 'AWAITING_PICKUP'} ? 'btn-phenikaa' : 'btn-outline-secondary'">Chờ lấy</a>
+                <a th:href="@{/client/my-loans(status='BORROWED')}" class="btn btn-sm" th:classappend="${selectedStatus != null and selectedStatus.name() == 'BORROWED'} ? 'btn-phenikaa' : 'btn-outline-secondary'">Đang mượn</a>
+                <a th:href="@{/client/my-loans(status='COMPLETED')}" class="btn btn-sm" th:classappend="${selectedStatus != null and selectedStatus.name() == 'COMPLETED'} ? 'btn-phenikaa' : 'btn-outline-secondary'">Hoàn thành</a>
+                <a th:href="@{/client/my-loans(status='CANCELLED')}" class="btn btn-sm" th:classappend="${selectedStatus != null and selectedStatus.name() == 'CANCELLED'} ? 'btn-phenikaa' : 'btn-outline-secondary'">Đã huỷ</a>
+            </div>
         </div>
 
+        <div th:if="${loans.isEmpty()}" class="empty-state py-3"><p class="text-muted mb-0">Không có phiếu mượn nào.</p></div>
+
         <div class="accordion" id="loanHistory" th:if="${!loans.isEmpty()}">
-            <div class="accordion-item border-0 mb-2 card" th:each="loan, stat : ${loans}">
+            <div class="accordion-item border-0 mb-2 card" th:each="loan : ${loans}">
                 <h2 class="accordion-header">
-                    <button class="accordion-button collapsed rounded" type="button"
-                            data-bs-toggle="collapse"
-                            th:data-bs-target="'#loan' + ${loan.id}">
-                        <div class="d-flex w-100 align-items-center gap-3">
+                    <button class="accordion-button collapsed rounded" type="button" data-bs-toggle="collapse" th:data-bs-target="'#loan' + ${loan.id}">
+                        <div class="d-flex w-100 align-items-center gap-3 flex-wrap">
                             <span class="badge"
                                   th:classappend="${loan.status.name() == 'AWAITING_PICKUP' ? 'bg-warning text-dark' :
                                                    loan.status.name() == 'BORROWED' ? 'bg-primary' :
-                                                   loan.status.name() == 'RETURNED' ? 'bg-success' : 'bg-secondary'}"
+                                                   loan.status.name() == 'COMPLETED' ? 'bg-success' : 'bg-secondary'}"
                                   th:text="${loan.status.name() == 'AWAITING_PICKUP' ? '⏳ Chờ lấy' :
                                             loan.status.name() == 'BORROWED' ? '📚 Đang mượn' :
-                                            loan.status.name() == 'RETURNED' ? '✅ Đã trả' : '❌ Đã huỷ'}">
-                            </span>
+                                            loan.status.name() == 'COMPLETED' ? '✅ Hoàn thành' : '❌ Đã huỷ'}"></span>
                             <span class="text-muted small" th:text="'Phiếu #' + ${loan.id}"></span>
-                            <span class="ms-auto text-muted small"
-                                  th:text="${#temporals.format(loan.createdAt, 'dd/MM/yyyy HH:mm')}"></span>
+                            <span class="badge bg-dark" th:if="${loan.pickupCode != null and (loan.status.name() == 'AWAITING_PICKUP' or loan.status.name() == 'BORROWED')}"
+                                  th:text="'Mã: ' + ${loan.pickupCode}"></span>
+                            <span class="badge bg-info text-dark" th:if="${loan.inHouse}"><i class="bi bi-eyeglasses me-1"></i>Đọc tại chỗ</span>
+                            <span class="ms-auto text-muted small" th:text="${#temporals.format(loan.createdAt, 'dd/MM/yyyy HH:mm')}"></span>
                         </div>
                     </button>
                 </h2>
-                <div th:id="'loan' + ${loan.id}" class="accordion-collapse collapse"
-                     data-bs-parent="#loanHistory">
+                <div th:id="'loan' + ${loan.id}" class="accordion-collapse collapse" data-bs-parent="#loanHistory">
                     <div class="accordion-body pt-0">
-                        <table class="table table-sm table-borderless mb-0">
+                        <table class="table table-sm table-borderless mb-2">
                             <thead><tr class="text-muted small"><th>Sách</th><th>Hạn trả</th><th>Ngày trả</th><th>Trạng thái</th><th>Tiền phạt</th></tr></thead>
                             <tbody>
                                 <tr th:each="d : ${loan.loanDetails}">
@@ -214,16 +163,26 @@
                                         <span class="badge bg-warning text-dark" th:if="${d.status.name() == 'RESERVED'}">Chờ lấy</span>
                                         <span class="badge bg-info text-dark" th:if="${d.status.name() == 'BORROWING'}">Đang mượn</span>
                                         <span class="badge bg-success" th:if="${d.status.name() == 'RETURNED'}">Đã trả</span>
-                                        <span class="badge bg-danger" th:if="${d.status.name() == 'OVERDUE'}">Quá hạn</span>
                                     </td>
                                     <td>
-                                        <span class="text-danger fw-bold" th:if="${d.fineAmount != null and d.fineAmount.compareTo(T(java.math.BigDecimal).ZERO) > 0}"
+                                        <span class="text-danger fw-bold" th:if="${d.hasFine()}"
                                               th:text="${#numbers.formatDecimal(d.fineAmount, 0, 'COMMA', 0, 'POINT')} + ' đ'"></span>
-                                        <span class="text-muted" th:if="${d.fineAmount == null or d.fineAmount.compareTo(T(java.math.BigDecimal).ZERO) == 0}">--</span>
+                                        <span class="badge bg-success ms-1" th:if="${d.hasFine() and d.finePaid}">đã thu</span>
+                                        <span class="badge bg-danger ms-1" th:if="${d.hasFine() and !d.finePaid}">chưa thu</span>
+                                        <span class="text-muted" th:unless="${d.hasFine()}">--</span>
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
+                        <!-- Lịch sử / ghi chú -->
+                        <div class="small text-muted">
+                            <span th:if="${loan.status.name() == 'BORROWED'}" class="text-primary">
+                                <i class="bi bi-info-circle me-1"></i>Đơn hoàn thành khi đã trả hết sách và thanh toán xong phí phạt (nếu có). Mã mượn còn hiệu lực đến lúc đó.
+                            </span>
+                            <span th:if="${loan.status.name() == 'CANCELLED' and loan.cancelReason != null}" class="text-danger">
+                                <i class="bi bi-x-circle me-1"></i>Đã huỷ — Lý do: <span th:text="${loan.cancelReason}"></span>
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -231,11 +190,7 @@
     </div>
 </main>
 
-<footer class="phenikaa-footer mt-5">
-    <div class="container text-center py-3">
-        <p class="mb-0 small">© 2025 Thư viện Đại học Phenikaa</p>
-    </div>
-</footer>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<footer th:replace="~{fragments/common :: footer}"></footer>
+<th:block th:replace="~{fragments/common :: scripts}"></th:block>
 </body>
 </html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head('Thông báo')}"></head>
+<body class="phenikaa-body">
+
+<th:block th:if="${currentUser != null and currentUser.role.name() == 'ADMIN'}">
+    <nav th:replace="~{fragments/navbar :: adminNav('')}"></nav>
+</th:block>
+<th:block th:if="${currentUser != null and currentUser.role.name() == 'LIBRARIAN'}">
+    <nav th:replace="~{fragments/navbar :: librarianNav('')}"></nav>
+</th:block>
+<th:block th:if="${currentUser != null and (currentUser.role.name() == 'STUDENT' or currentUser.role.name() == 'LECTURER' or currentUser.role.name() == 'RESEARCHER')}">
+    <nav th:replace="~{fragments/navbar :: clientNav('')}"></nav>
+</th:block>
+
+<div th:replace="~{fragments/common :: messages}"></div>
+
+<main class="container py-4" style="max-width:820px">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div class="section-header mb-0">
+            <div class="section-header-icon"><i class="bi bi-bell-fill"></i></div>
+            <div>
+                <h1 class="section-title">Thông báo</h1>
+                <p class="section-subtitle" th:text="${notifications.size()} + ' thông báo'"></p>
+            </div>
+        </div>
+        <form th:action="@{/notifications/read-all}" method="post" th:if="${!notifications.isEmpty()}">
+            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+            <button type="submit" class="btn btn-outline-secondary btn-sm"><i class="bi bi-check2-all me-1"></i>Đánh dấu đã đọc tất cả</button>
+        </form>
+    </div>
+
+    <div th:if="${notifications.isEmpty()}" class="empty-state">
+        <div class="empty-state-icon">🔔</div>
+        <h3 class="h5 text-muted">Chưa có thông báo nào</h3>
+    </div>
+
+    <div class="list-group" th:if="${!notifications.isEmpty()}">
+        <div class="list-group-item d-flex align-items-start gap-3"
+             th:each="n : ${notifications}" th:classappend="${!n.read} ? 'bg-light' : ''">
+            <i th:class="|bi fs-5 ${n.type.icon} text-${n.type.cssClass}|"></i>
+            <div class="flex-grow-1">
+                <a th:if="${n.link != null}" th:href="${n.link}" class="text-decoration-none text-dark">
+                    <span th:text="${n.message}" th:classappend="${!n.read} ? 'fw-semibold' : ''"></span>
+                </a>
+                <span th:unless="${n.link != null}" th:text="${n.message}" th:classappend="${!n.read} ? 'fw-semibold' : ''"></span>
+                <div class="text-muted small mt-1" th:text="${#temporals.format(n.createdAt, 'dd/MM/yyyy HH:mm')}"></div>
+            </div>
+            <form th:if="${!n.read}" th:action="@{/notifications/{id}/read(id=${n.id})}" method="post">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Đánh dấu đã đọc"><i class="bi bi-check-lg"></i></button>
+            </form>
+            <span th:if="${n.read}" class="badge bg-light text-muted align-self-center">đã đọc</span>
+        </div>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/common :: footer}"></footer>
+<th:block th:replace="~{fragments/common :: scripts}"></th:block>
+</body>
+</html>

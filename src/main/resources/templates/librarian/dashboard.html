@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head('Dashboard Thủ thư')}"></head>
+<body class="phenikaa-body">
+
+<nav th:replace="~{fragments/navbar :: librarianNav('dashboard')}"></nav>
+<div th:replace="~{fragments/common :: messages}"></div>
+
+<main class="container py-4">
+    <div class="section-header mb-4">
+        <div class="section-header-icon"><i class="bi bi-speedometer2"></i></div>
+        <div>
+            <h1 class="section-title">Dashboard</h1>
+            <p class="section-subtitle">Tổng quan hoạt động thư viện hôm nay</p>
+        </div>
+    </div>
+
+    <div class="row g-4 mb-5">
+        <div class="col-6 col-lg-3">
+            <div class="stat-card stat-pending">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" th:text="${awaitingCount}">0</div>
+                        <div class="stat-label">Đơn chờ lấy</div>
+                    </div>
+                    <div class="stat-icon"><i class="bi bi-box-seam"></i></div>
+                </div>
+                <div class="mt-3">
+                    <a th:href="@{/librarian/loans(status='AWAITING_PICKUP')}" class="text-white text-decoration-none small">Xem ngay →</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stat-card stat-active">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" th:text="${activeCount}">0</div>
+                        <div class="stat-label">Đơn đang mượn</div>
+                    </div>
+                    <div class="stat-icon"><i class="bi bi-activity"></i></div>
+                </div>
+                <div class="mt-3">
+                    <a th:href="@{/librarian/loans(status='BORROWED')}" class="text-white text-decoration-none small">Xem ngay →</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stat-card stat-overdue">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" th:text="${overdueList.size()}">0</div>
+                        <div class="stat-label">Sách quá hạn</div>
+                    </div>
+                    <div class="stat-icon"><i class="bi bi-exclamation-triangle"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="stat-card stat-total">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                        <div class="stat-value" th:text="${borrowingCount}">0</div>
+                        <div class="stat-label">Tài liệu đang lưu thông</div>
+                    </div>
+                    <div class="stat-icon"><i class="bi bi-book-half"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="mb-4">
+        <h2 class="h5 fw-bold text-danger mb-3"><i class="bi bi-exclamation-triangle-fill me-2"></i>Sách đang quá hạn</h2>
+        <div class="empty-state" th:if="${overdueList.isEmpty()}">
+            <div class="empty-state-icon">✅</div>
+            <p class="text-muted">Không có sách nào đang quá hạn!</p>
+        </div>
+        <div class="card table-card" th:if="${!overdueList.isEmpty()}">
+            <table class="table table-hover mb-0">
+                <thead>
+                    <tr><th>Người mượn</th><th>Tên sách</th><th>Hạn trả</th><th>Số ngày quá hạn</th><th>Tiền phạt ước tính</th></tr>
+                </thead>
+                <tbody>
+                    <tr th:each="detail : ${overdueList}" class="table-danger">
+                        <td>
+                            <div class="fw-semibold" th:text="${detail.loan.user.fullName}"></div>
+                            <small class="text-muted" th:text="${detail.loan.user.studentCode}"></small>
+                        </td>
+                        <td th:text="${detail.book.title}"></td>
+                        <td class="text-danger fw-bold" th:text="${#temporals.format(detail.dueDate, 'dd/MM/yyyy')}"></td>
+                        <td><span class="overdue-badge" th:text="${detail.daysOverdue} + ' ngày'"></span></td>
+                        <td class="text-danger fw-bold"
+                            th:text="${#numbers.formatDecimal(detail.daysOverdue * 2000, 0, 'COMMA', 0, 'POINT')} + ' đ'"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div>
+        <h2 class="h5 fw-bold mb-3"><i class="bi bi-lightning-charge me-2"></i>Thao tác nhanh</h2>
+        <div class="row g-3">
+            <div class="col-6 col-md-3">
+                <a th:href="@{/librarian/loans(status='AWAITING_PICKUP')}" class="card text-decoration-none p-3 text-center h-100 hover-lift">
+                    <div class="fs-2 mb-2">📦</div><div class="fw-semibold">Đơn chờ lấy</div>
+                    <small class="text-muted" th:text="${awaitingCount} + ' đơn'"></small>
+                </a>
+            </div>
+            <div class="col-6 col-md-3">
+                <a th:href="@{/librarian/loans(status='BORROWED')}" class="card text-decoration-none p-3 text-center h-100">
+                    <div class="fs-2 mb-2">📥</div><div class="fw-semibold">Trả sách & thu phí</div>
+                    <small class="text-muted">Đơn đang mượn</small>
+                </a>
+            </div>
+            <div class="col-6 col-md-3">
+                <a th:href="@{/librarian/books/new}" class="card text-decoration-none p-3 text-center h-100">
+                    <div class="fs-2 mb-2">➕</div><div class="fw-semibold">Thêm sách mới</div>
+                    <small class="text-muted">Quản lý kho sách</small>
+                </a>
+            </div>
+            <div class="col-6 col-md-3">
+                <a th:href="@{/librarian/rules}" class="card text-decoration-none p-3 text-center h-100">
+                    <div class="fs-2 mb-2">⚙️</div><div class="fw-semibold">Quy tắc mượn</div>
+                    <small class="text-muted">Cấu hình hạn mức</small>
+                </a>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/common :: footer}"></footer>
+<th:block th:replace="~{fragments/common :: scripts}"></th:block>
+</body>
+</html>

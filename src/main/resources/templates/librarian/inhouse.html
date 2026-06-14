@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head('Đọc tại chỗ')}"></head>
+<body class="phenikaa-body">
+
+<nav th:replace="~{fragments/navbar :: librarianNav('inhouse')}"></nav>
+<div th:replace="~{fragments/common :: messages}"></div>
+
+<main class="container py-4">
+    <div class="section-header mb-4">
+        <div class="section-header-icon"><i class="bi bi-eyeglasses"></i></div>
+        <div>
+            <h1 class="section-title">Cho mượn đọc tại chỗ</h1>
+            <p class="section-subtitle">Tài liệu nội sinh chỉ đọc tại thư viện — lập phiếu để biết ai đang đọc.</p>
+        </div>
+    </div>
+
+    <!-- Lập phiếu đọc tại chỗ -->
+    <div class="card mb-4" th:if="${@permissionService.has(currentUser.role, T(com.library.entity.Permission).LOAN_LEND_INHOUSE)}">
+        <div class="card-body">
+            <h2 class="h6 fw-bold mb-3"><i class="bi bi-journal-plus me-2"></i>Lập phiếu mới</h2>
+            <form th:action="@{/librarian/inhouse}" method="post" class="row g-2 align-items-end">
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                <div class="col-md-4">
+                    <label class="form-label small text-muted">Mã số bạn đọc</label>
+                    <input type="text" name="studentCode" class="form-control" placeholder="VD: student01" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label small text-muted">Tài liệu nội sinh</label>
+                    <select name="bookId" class="form-select" required>
+                        <option value="">-- Chọn tài liệu --</option>
+                        <option th:each="b : ${restrictedBooks}" th:value="${b.id}"
+                                th:disabled="${b.availableCopies == 0}"
+                                th:text="${b.title + (b.availableCopies == 0 ? ' (đã hết)' : '')}"></option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-phenikaa w-100"><i class="bi bi-check-lg me-1"></i>Cho mượn</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Đang đọc tại chỗ -->
+    <h2 class="h5 fw-bold mb-3"><i class="bi bi-people me-2"></i>Đang đọc tại chỗ</h2>
+    <div class="empty-state" th:if="${activeInhouse.isEmpty()}">
+        <div class="empty-state-icon">📖</div>
+        <h3 class="h6 text-muted">Hiện không có ai đang đọc tại chỗ</h3>
+    </div>
+
+    <div class="card table-card" th:if="${!activeInhouse.isEmpty()}">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr><th>Bạn đọc</th><th>Tài liệu</th><th>Bắt đầu lúc</th><th>Trả</th></tr>
+            </thead>
+            <tbody>
+                <tr th:each="loan : ${activeInhouse}">
+                    <td>
+                        <div class="fw-semibold" th:text="${loan.user.fullName}"></div>
+                        <small class="text-muted" th:text="${loan.user.studentCode}"></small>
+                    </td>
+                    <td>
+                        <span th:each="d : ${loan.loanDetails}" th:text="${d.book.title}"></span>
+                    </td>
+                    <td class="small text-muted" th:text="${#temporals.format(loan.pickedUpAt, 'dd/MM/yyyy HH:mm')}"></td>
+                    <td>
+                        <span th:each="d : ${loan.loanDetails}">
+                            <form th:if="${@permissionService.has(currentUser.role, T(com.library.entity.Permission).LOAN_RETURN)}"
+                                  th:action="@{/librarian/loans/details/{id}/return(id=${d.id})}" method="post">
+                                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                <input type="hidden" name="condition" value="GOOD">
+                                <button type="submit" class="btn btn-sm btn-success" onclick="return confirm('Xác nhận bạn đọc đã trả tài liệu?')">
+                                    <i class="bi bi-check-circle me-1"></i>Trả
+                                </button>
+                            </form>
+                        </span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/common :: footer}"></footer>
+<th:block th:replace="~{fragments/common :: scripts}"></th:block>
+</body>
+</html>

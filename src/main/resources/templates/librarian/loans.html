@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head('Quản lý đơn mượn')}"></head>
+<body class="phenikaa-body">
+
+<nav th:replace="~{fragments/navbar :: librarianNav('loans')}"></nav>
+<div th:replace="~{fragments/common :: messages}"></div>
+
+<main class="container py-4">
+    <div class="section-header mb-4">
+        <div class="section-header-icon"><i class="bi bi-file-earmark-text"></i></div>
+        <div>
+            <h1 class="section-title">Quản lý đơn mượn</h1>
+            <p class="section-subtitle" th:text="${loans.size()} + ' đơn'"></p>
+        </div>
+    </div>
+
+    <!-- FILTER trạng thái -->
+    <div class="mb-4 d-flex flex-wrap gap-2">
+        <a th:href="@{/librarian/loans}" class="btn btn-sm"
+           th:classappend="${selectedStatus == null} ? 'btn-phenikaa' : 'btn-outline-secondary'">Tất cả</a>
+        <a th:href="@{/librarian/loans(status='AWAITING_PICKUP')}" class="btn btn-sm"
+           th:classappend="${selectedStatus != null and selectedStatus.name() == 'AWAITING_PICKUP'} ? 'btn-phenikaa' : 'btn-outline-secondary'">⏳ Chờ lấy</a>
+        <a th:href="@{/librarian/loans(status='BORROWED')}" class="btn btn-sm"
+           th:classappend="${selectedStatus != null and selectedStatus.name() == 'BORROWED'} ? 'btn-phenikaa' : 'btn-outline-secondary'">📚 Đang mượn</a>
+        <a th:href="@{/librarian/loans(status='COMPLETED')}" class="btn btn-sm"
+           th:classappend="${selectedStatus != null and selectedStatus.name() == 'COMPLETED'} ? 'btn-phenikaa' : 'btn-outline-secondary'">✅ Hoàn thành</a>
+        <a th:href="@{/librarian/loans(status='CANCELLED')}" class="btn btn-sm"
+           th:classappend="${selectedStatus != null and selectedStatus.name() == 'CANCELLED'} ? 'btn-phenikaa' : 'btn-outline-secondary'">❌ Đã huỷ</a>
+    </div>
+
+    <div class="empty-state" th:if="${loans.isEmpty()}">
+        <div class="empty-state-icon">📭</div>
+        <h3 class="h5 text-muted">Không có đơn nào</h3>
+    </div>
+
+    <div th:each="loan : ${loans}" class="card mb-3">
+        <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2 py-3">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <!-- Mã mượn: còn hiệu lực tới khi đơn hoàn thành -->
+                <span class="badge bg-dark fs-6 px-3"
+                      th:if="${loan.pickupCode != null and (loan.status.name() == 'AWAITING_PICKUP' or loan.status.name() == 'BORROWED')}">
+                    <i class="bi bi-upc-scan me-1"></i>Mã: <span th:text="${loan.pickupCode}"></span>
+                </span>
+                <span class="badge bg-info text-dark" th:if="${loan.inHouse}"><i class="bi bi-eyeglasses me-1"></i>Đọc tại chỗ</span>
+                <div>
+                    <span class="fw-bold" th:text="'Phiếu #' + ${loan.id}"></span>
+                    <span class="badge ms-1"
+                          th:classappend="${loan.status.name() == 'AWAITING_PICKUP' ? 'bg-warning text-dark' :
+                                           loan.status.name() == 'BORROWED' ? 'bg-primary' :
+                                           loan.status.name() == 'COMPLETED' ? 'bg-success' : 'bg-secondary'}"
+                          th:text="${loan.status.name() == 'AWAITING_PICKUP' ? 'Chờ lấy' :
+                                    loan.status.name() == 'BORROWED' ? 'Đang mượn' :
+                                    loan.status.name() == 'COMPLETED' ? 'Hoàn thành' : 'Đã huỷ'}"></span>
+                    <div class="small text-muted">
+                        <span class="fw-semibold" th:text="${loan.user.fullName}"></span>
+                        (<span th:text="${loan.user.studentCode}"></span>) •
+                        Tạo: <span th:text="${#temporals.format(loan.createdAt, 'dd/MM/yyyy HH:mm')}"></span>
+                        <span th:if="${loan.status.name() == 'AWAITING_PICKUP'}">•
+                            Hạn lấy: <span class="text-danger" th:text="${#temporals.format(loan.pickupDeadline, 'dd/MM HH:mm')}"></span>
+                        </span>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm" type="button"
+                        data-bs-toggle="collapse" th:data-bs-target="'#loan' + ${loan.id}">
+                    <i class="bi bi-list-ul me-1"></i>Chi tiết & lịch sử
+                </button>
+                <!-- Huỷ đơn (kèm lý do) chỉ khi đang chờ lấy -->
+                <form th:if="${loan.status.name() == 'AWAITING_PICKUP' and @permissionService.has(currentUser.role, T(com.library.entity.Permission).LOAN_CANCEL)}"
+                      th:action="@{/librarian/loans/{id}/cancel(id=${loan.id})}" method="post"
+                      class="d-flex gap-1" onsubmit="return confirm('Huỷ đơn này và gửi lý do cho bạn đọc?')">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <input type="text" name="reason" class="form-control form-control-sm" style="width:170px"
+                           placeholder="Lý do huỷ..." required>
+                    <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-lg me-1"></i>Huỷ</button>
+                </form>
+            </div>
+        </div>
+
+        <div th:id="'loan' + ${loan.id}" class="collapse">
+            <div class="card-body">
+                <!-- Bảng sách trong đơn -->
+                <table class="table table-sm table-hover align-middle mb-3">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Tên sách</th><th>Loại</th><th>Hạn trả</th><th>Trạng thái</th>
+                            <th>Phí phạt</th><th>Thao tác</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="d : ${loan.loanDetails}"
+                            th:classappend="${d.overdue} ? 'table-danger' : ''">
+                            <td>
+                                <div class="fw-semibold" th:text="${d.book.title}"></div>
+                                <small class="text-muted" th:text="${d.book.author}"></small>
+                            </td>
+                            <td>
+                                <span th:switch="${d.book.docType.name()}">
+                                    <span th:case="'TEXTBOOK'" class="doc-type-badge badge-textbook">GT</span>
+                                    <span th:case="'SPECIALIZED_REF'" class="doc-type-badge badge-specialized">TKCC</span>
+                                    <span th:case="'GENERAL_REF'" class="doc-type-badge badge-general">TKTC</span>
+                                    <span th:case="'RESTRICTED'" class="doc-type-badge badge-restricted">NS</span>
+                                </span>
+                            </td>
+                            <td>
+                                <span th:if="${d.dueDate != null}" th:text="${#temporals.format(d.dueDate, 'dd/MM/yyyy')}"></span>
+                                <span th:if="${d.dueDate == null}" class="text-muted">--</span>
+                            </td>
+                            <td>
+                                <span class="badge bg-warning text-dark" th:if="${d.status.name() == 'RESERVED'}">Chờ lấy</span>
+                                <span class="badge bg-info text-dark" th:if="${d.status.name() == 'BORROWING'}">Đang mượn</span>
+                                <span class="badge bg-success" th:if="${d.status.name() == 'RETURNED'}">Đã trả</span>
+                                <span class="overdue-badge ms-1" th:if="${d.overdue}">Quá <span th:text="${d.daysOverdue}"></span>n</span>
+                            </td>
+                            <td>
+                                <span th:if="${d.hasFine()}" class="text-danger fw-semibold"
+                                      th:text="${#numbers.formatDecimal(d.fineAmount, 0, 'COMMA', 0, 'POINT')} + ' đ'"></span>
+                                <span th:unless="${d.hasFine()}" class="text-muted">--</span>
+                                <span class="badge bg-success ms-1" th:if="${d.hasFine() and d.finePaid}">Đã thu</span>
+                                <span class="badge bg-danger ms-1" th:if="${d.hasFine() and !d.finePaid}">Chưa thu</span>
+                            </td>
+                            <td>
+                                <!-- Trả sách -->
+                                <form th:if="${d.status.name() == 'BORROWING' and @permissionService.has(currentUser.role, T(com.library.entity.Permission).LOAN_RETURN)}"
+                                      th:action="@{/librarian/loans/details/{id}/return(id=${d.id})}" method="post"
+                                      class="d-flex gap-1 align-items-center">
+                                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                    <select name="condition" class="form-select form-select-sm" style="width:90px">
+                                        <option value="GOOD">Tốt</option>
+                                        <option value="DAMAGED">Hỏng</option>
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-success"
+                                            onclick="return confirm('Xác nhận trả sách này?')"><i class="bi bi-check-circle me-1"></i>Trả</button>
+                                </form>
+                                <!-- Thu phí -->
+                                <form th:if="${d.status.name() == 'RETURNED' and d.hasFine() and !d.finePaid and @permissionService.has(currentUser.role, T(com.library.entity.Permission).LOAN_PAY_FINE)}"
+                                      th:action="@{/librarian/loans/details/{id}/pay-fine(id=${d.id})}" method="post">
+                                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                                    <button type="submit" class="btn btn-sm btn-warning"
+                                            onclick="return confirm('Xác nhận đã thu phí?')"><i class="bi bi-cash-coin me-1"></i>Đã thu phí</button>
+                                </form>
+                                <span class="text-muted small"
+                                      th:if="${d.status.name() == 'RETURNED' and d.isFineSettled()}">Xong</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <!-- Lịch sử đơn -->
+                <h6 class="fw-bold text-muted small mb-2"><i class="bi bi-clock-history me-1"></i>Lịch sử</h6>
+                <ul class="list-unstyled small mb-0 ps-2">
+                    <li>📝 Tạo đơn — <span th:text="${#temporals.format(loan.createdAt, 'dd/MM/yyyy HH:mm')}"></span></li>
+                    <li th:if="${loan.pickedUpAt != null}">📦 Nhận sách — <span th:text="${#temporals.format(loan.pickedUpAt, 'dd/MM/yyyy HH:mm')}"></span></li>
+                    <li th:each="d : ${loan.loanDetails}" th:if="${d.returnDate != null}">
+                        ↩️ Trả '<span th:text="${d.book.title}"></span>' — <span th:text="${#temporals.format(d.returnDate, 'dd/MM/yyyy HH:mm')}"></span>
+                        <span th:if="${d.hasFine()}" th:text="'(phí ' + ${#numbers.formatDecimal(d.fineAmount, 0, 'COMMA', 0, 'POINT')} + 'đ — ' + (${d.finePaid} ? 'đã thu' : 'chưa thu') + ')'"></span>
+                    </li>
+                    <li th:if="${loan.status.name() == 'COMPLETED'}" class="text-success">✅ Đơn đã hoàn thành</li>
+                    <li th:if="${loan.status.name() == 'CANCELLED'}" class="text-danger">
+                        ❌ Đã huỷ<span th:if="${loan.cancelledByRole != null}" th:text="' (' + ${loan.cancelledByRole} + ')'"></span>
+                        <span th:if="${loan.cancelReason != null}" th:text="' — Lý do: ' + ${loan.cancelReason}"></span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</main>
+
+<footer th:replace="~{fragments/common :: footer}"></footer>
+<th:block th:replace="~{fragments/common :: scripts}"></th:block>
+</body>
+</html>

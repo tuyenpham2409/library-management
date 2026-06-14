@@ -44,6 +44,10 @@ public class LoanDetail {
     @Column(name = "fine_amount", precision = 10, scale = 0)
     private BigDecimal fineAmount = BigDecimal.ZERO;
 
+    // Đã thu phí phạt hay chưa. Tự động true khi phí = 0; thủ thư bấm "Đã thu phí" khi phí > 0.
+    @Column(name = "fine_paid", nullable = false)
+    private Boolean finePaid = false;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private LoanDetailStatus status = LoanDetailStatus.BORROWING;
@@ -68,5 +72,14 @@ public class LoanDetail {
     public boolean isDueSoon() {
         long remaining = getDaysRemaining();
         return remaining >= 0 && remaining <= 3;
+    }
+
+    public boolean hasFine() {
+        return fineAmount != null && fineAmount.compareTo(BigDecimal.ZERO) > 0;
+    }
+
+    /** Đã giải quyết xong tiền phạt: hoặc không có phí, hoặc đã thu. */
+    public boolean isFineSettled() {
+        return !hasFine() || Boolean.TRUE.equals(finePaid);
     }
 }

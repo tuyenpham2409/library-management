@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head th:fragment="head(pageTitle)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${pageTitle} + ' — Thư viện Phenikaa'">Thư viện Phenikaa</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+
+<body>
+
+<!-- Flash messages dùng chung -->
+<div th:fragment="messages" class="container mt-3"
+     th:if="${success != null or error != null or warn != null or errors != null}">
+    <div class="alert alert-success alert-dismissible fade show" th:if="${success}" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i><span th:text="${success}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div class="alert alert-danger alert-dismissible fade show" th:if="${error}" role="alert">
+        <i class="bi bi-x-circle-fill me-2"></i><span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div class="alert alert-warning alert-dismissible fade show" th:if="${warn}" role="alert">
+        <i class="bi bi-exclamation-triangle-fill me-2"></i><span th:text="${warn}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    <div class="alert alert-danger alert-dismissible fade show" th:if="${errors != null and !errors.isEmpty()}" role="alert">
+        <i class="bi bi-exclamation-circle-fill me-2"></i><strong>Không thể thực hiện:</strong>
+        <ul class="mb-0 mt-2"><li th:each="err : ${errors}" th:text="${err}"></li></ul>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+</div>
+
+<!-- Footer dùng chung -->
+<footer th:fragment="footer" class="phenikaa-footer mt-5">
+    <div class="container text-center py-3">
+        <p class="mb-1"><i class="bi bi-building me-1"></i><strong>Thư viện Đại học Phenikaa</strong> — Tòa nhà A4, Phòng 104</p>
+        <p class="mb-0 opacity-75 small">Giờ làm việc: Thứ 2 – Thứ 6 | Sáng: 8:00–11:30 | Chiều: 13:30–16:30</p>
+    </div>
+</footer>
+
+<th:block th:fragment="scripts">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</th:block>
+
+<!-- Thêm giỏ bằng AJAX: không reload trang, không nhảy về đầu / rời trang chi tiết -->
+<th:block th:fragment="cartScript">
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index:1100" id="toastBox"></div>
+    <script>
+        document.addEventListener('submit', function (e) {
+            const form = e.target.closest('.add-cart-form');
+            if (!form) return;
+            e.preventDefault();
+            const btn = form.querySelector('button[type=submit]');
+            if (btn) btn.disabled = true;
+            fetch('/client/cart/add-ajax', { method: 'POST', body: new FormData(form) })
+                .then(r => r.json())
+                .then(d => {
+                    showCartToast(d.message, d.ok);
+                    if (d.ok) {
+                        document.querySelectorAll('.js-cart-count').forEach(el => {
+                            el.textContent = d.cartCount;
+                            el.classList.remove('d-none');
+                        });
+                        if (form.dataset.markAdded === 'true' && btn) {
+                            btn.outerHTML = '<span class="badge bg-success"><i class="bi bi-cart-check me-1"></i>Đã có trong giỏ</span>';
+                        } else if (btn) {
+                            btn.disabled = false;
+                        }
+                    } else if (btn) {
+                        btn.disabled = false;
+                    }
+                })
+                .catch(() => { showCartToast('Có lỗi xảy ra, vui lòng thử lại.', false); if (btn) btn.disabled = false; });
+        });
+        function showCartToast(msg, ok) {
+            const box = document.getElementById('toastBox');
+            const el = document.createElement('div');
+            el.className = 'toast align-items-center text-white border-0 ' + (ok ? 'bg-success' : 'bg-danger');
+            el.setAttribute('role', 'alert');
+            el.innerHTML = '<div class="d-flex"><div class="toast-body">' + msg +
+                '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>';
+            box.appendChild(el);
+            new bootstrap.Toast(el, { delay: 2500 }).show();
+            el.addEventListener('hidden.bs.toast', () => el.remove());
+        }
+    </script>
+</th:block>
+
+</body>
+</html>

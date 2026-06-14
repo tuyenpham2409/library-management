@@ -6,6 +6,7 @@ import com.library.entity.*;
 import com.library.repository.UserRepository;
 import com.library.service.BookService;
 import com.library.service.LoanService;
+import com.library.service.PermissionService;
 import com.library.service.RuleService;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -24,13 +25,16 @@ public class ClientController {
     private final LoanService loanService;
     private final UserRepository userRepository;
     private final RuleService ruleService;
+    private final PermissionService permissionService;
 
     public ClientController(BookService bookService, LoanService loanService,
-                            UserRepository userRepository, RuleService ruleService) {
+                            UserRepository userRepository, RuleService ruleService,
+                            PermissionService permissionService) {
         this.bookService = bookService;
         this.loanService = loanService;
         this.userRepository = userRepository;
         this.ruleService = ruleService;
+        this.permissionService = permissionService;
     }
 
     private User getCurrentUser(Authentication auth) {
@@ -70,6 +74,7 @@ public class ClientController {
         model.addAttribute("docTypes", DocType.values());
         model.addAttribute("cartCount", cart.size());
         model.addAttribute("hasOverdue", loanService.hasOverdue(user));
+        model.addAttribute("canBorrow", permissionService.has(user.getRole(), Permission.BORROW));
         return "client/home";
     }
 
@@ -86,45 +91,62 @@ public class ClientController {
         model.addAttribute("book", book);
         model.addAttribute("inCart", inCart);
         model.addAttribute("cartCount", cart.size());
+        model.addAttribute("hasOverdue", loanService.hasOverdue(user));
+        model.addAttribute("canBorrow", permissionService.has(user.getRole(), Permission.BORROW));
         return "client/book-detail";
     }
 
     // =========== GIỎ SÁCH ===========
 
+    /** Kết quả thêm giỏ dùng chung cho form thường và AJAX. */
+    private record CartAddResult(boolean ok, String message, int cartCount) {}
+
+    private CartAddResult addToCartInternal(Long bookId, User user, HttpSession session) {
+        List<CartItem> cart = getCart(session);
+        if (!permissionService.has(user.getRole(), Permission.BORROW)) {
+            return new CartAddResult(false, "Bạn không được cấp quyền mượn sách.", cart.size());
+        }
+        if (cart.stream().anyMatch(c -> c.getBookId().equals(bookId))) {
+            return new CartAddResult(false, "Sách này đã có trong giỏ.", cart.size());
+        }
+        if (cart.size() >= 5) {
+            return new CartAddResult(false, "Giỏ sách tối đa 5 cuốn.", cart.size());
+        }
+        Book book = bookService.findById(bookId)
+                .orElseThrow(() -> new RuntimeException("Book not found"));
+        if (book.getDocType() == DocType.RESTRICTED) {
+            return new CartAddResult(false, "Tài liệu nội sinh chỉ được đọc tại chỗ.", cart.size());
+        }
+        if (!ruleService.visibleDocTypes(user.getRole()).contains(book.getDocType())) {
+            return new CartAddResult(false, "Loại tài liệu này hiện không khả dụng để mượn.", cart.size());
+        }
+        if (!book.isAvailable()) {
+            return new CartAddResult(false, "Sách '" + book.getTitle() + "' hiện đã hết.", cart.size());
+        }
+        cart.add(new CartItem(book.getId(), book.getTitle(), book.getAuthor(),
+                book.getDocType(), book.getClassificationCode()));
+        return new CartAddResult(true, "Đã thêm '" + book.getTitle() + "' vào giỏ.", cart.size());
+    }
+
     @PostMapping("/cart/add")
     public String addToCart(@RequestParam Long bookId, Authentication auth, HttpSession session,
                             RedirectAttributes redirectAttrs) {
-        List<CartItem> cart = getCart(session);
-
-        if (cart.stream().anyMatch(c -> c.getBookId().equals(bookId))) {
-            redirectAttrs.addFlashAttribute("warn", "Sách này đã có trong giỏ.");
-            return "redirect:/client/home";
-        }
-        if (cart.size() >= 5) {
-            redirectAttrs.addFlashAttribute("error", "Giỏ sách tối đa 5 cuốn.");
-            return "redirect:/client/home";
-        }
-
-        Book book = bookService.findById(bookId)
-                .orElseThrow(() -> new RuntimeException("Book not found"));
-
-        // Chặn thêm loại tài liệu đang bị ẩn với vai trò này
-        User user = getCurrentUser(auth);
-        if (!ruleService.visibleDocTypes(user.getRole()).contains(book.getDocType())) {
-            redirectAttrs.addFlashAttribute("error", "Loại tài liệu này hiện không khả dụng để mượn.");
-            return "redirect:/client/home";
-        }
-
-        if (!book.isAvailable()) {
-            redirectAttrs.addFlashAttribute("error", "Sách '" + book.getTitle() + "' hiện đã hết.");
-            return "redirect:/client/home";
-        }
-
-        CartItem item = new CartItem(book.getId(), book.getTitle(), book.getAuthor(),
-                book.getDocType(), book.getClassificationCode());
-        cart.add(item);
-        redirectAttrs.addFlashAttribute("success", "Đã thêm '" + book.getTitle() + "' vào giỏ.");
+        CartAddResult r = addToCartInternal(bookId, getCurrentUser(auth), session);
+        redirectAttrs.addFlashAttribute(r.ok() ? "success" : "error", r.message());
         return "redirect:/client/home";
+    }
+
+    /** Phiên bản AJAX: thêm giỏ không reload trang, trả JSON cho JS cập nhật badge + toast. */
+    @PostMapping("/cart/add-ajax")
+    @ResponseBody
+    public Map<String, Object> addToCartAjax(@RequestParam Long bookId, Authentication auth,
+                                             HttpSession session) {
+        CartAddResult r = addToCartInternal(bookId, getCurrentUser(auth), session);
+        Map<String, Object> res = new HashMap<>();
+        res.put("ok", r.ok());
+        res.put("message", r.message());
+        res.put("cartCount", r.cartCount());
+        return res;
     }
 
     @GetMapping("/cart")
@@ -159,6 +181,10 @@ public class ClientController {
     public String submitLoan(Authentication auth, HttpSession session,
                              RedirectAttributes redirectAttrs) {
         User user = getCurrentUser(auth);
+        if (!permissionService.has(user.getRole(), Permission.BORROW)) {
+            redirectAttrs.addFlashAttribute("error", "Bạn không được cấp quyền mượn sách.");
+            return "redirect:/client/cart";
+        }
         List<CartItem> cart = getCart(session);
 
         ValidationResult result = loanService.submitLoan(user, cart);
@@ -177,9 +203,12 @@ public class ClientController {
     // =========== TRANG CÁ NHÂN ===========
 
     @GetMapping("/my-loans")
-    public String myLoans(Model model, Authentication auth, HttpSession session) {
+    public String myLoans(Model model, Authentication auth, HttpSession session,
+                          @RequestParam(required = false) LoanStatus status) {
         User user = getCurrentUser(auth);
-        List<Loan> loans = loanService.findAllByUser(user);
+        List<Loan> loans = (status == null)
+                ? loanService.findAllByUser(user)
+                : loanService.findByUserAndStatus(user, status);
         List<LoanDetail> activeDetails = loanService.findActiveByUser(user);
         List<Loan> awaitingLoans = loanService.findByUserAndStatus(user, LoanStatus.AWAITING_PICKUP);
         List<CartItem> cart = getCart(session);
@@ -188,8 +217,12 @@ public class ClientController {
         model.addAttribute("loans", loans);
         model.addAttribute("activeDetails", activeDetails);
         model.addAttribute("awaitingLoans", awaitingLoans);
+        model.addAttribute("statuses", LoanStatus.values());
+        model.addAttribute("selectedStatus", status);
         model.addAttribute("cartCount", cart.size());
         model.addAttribute("hasOverdue", loanService.hasOverdue(user));
+        model.addAttribute("canRenew", permissionService.has(user.getRole(), Permission.RENEW));
+        model.addAttribute("canCancelOwn", permissionService.has(user.getRole(), Permission.CANCEL_OWN));
         return "client/my-loans";
     }
 
@@ -208,10 +241,32 @@ public class ClientController {
         return "redirect:/client/my-loans";
     }
 
+    @PostMapping("/loans/{id}/cancel")
+    public String cancelOwnLoan(@PathVariable Long id, Authentication auth,
+                                RedirectAttributes redirectAttrs) {
+        User user = getCurrentUser(auth);
+        if (!permissionService.has(user.getRole(), Permission.CANCEL_OWN)) {
+            redirectAttrs.addFlashAttribute("error", "Bạn không được cấp quyền tự huỷ đơn.");
+            return "redirect:/client/my-loans";
+        }
+        boolean ok = loanService.cancelByReader(id, user);
+        if (ok) {
+            redirectAttrs.addFlashAttribute("success", "Đã huỷ đơn mượn #" + id + ".");
+        } else {
+            redirectAttrs.addFlashAttribute("error",
+                    "Không thể huỷ. Chỉ huỷ được đơn đang chờ lấy (chưa nhận sách).");
+        }
+        return "redirect:/client/my-loans";
+    }
+
     @PostMapping("/loans/renew/{detailId}")
     public String renewBook(@PathVariable Long detailId, Authentication auth,
                             RedirectAttributes redirectAttrs) {
         User user = getCurrentUser(auth);
+        if (!permissionService.has(user.getRole(), Permission.RENEW)) {
+            redirectAttrs.addFlashAttribute("error", "Bạn không được cấp quyền gia hạn.");
+            return "redirect:/client/my-loans";
+        }
         boolean success = loanService.renewBook(detailId, user);
         if (success) {
             redirectAttrs.addFlashAttribute("success", "Gia hạn thành công!");

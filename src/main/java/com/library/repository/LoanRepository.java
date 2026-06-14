@@ -13,6 +13,7 @@ import java.util.List;
 @Repository
 public interface LoanRepository extends JpaRepository<Loan, Long> {
     List<Loan> findByUserOrderByCreatedAtDesc(User user);
+    List<Loan> findAllByOrderByCreatedAtDesc();
     List<Loan> findByStatus(LoanStatus status);
     List<Loan> findByUserAndStatus(User user, LoanStatus status);
 
@@ -21,6 +22,9 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
 
     // Đơn chờ lấy nhưng đã quá hạn 24h → dùng cho job tự huỷ
     List<Loan> findByStatusAndPickupDeadlineBefore(LoanStatus status, LocalDateTime time);
+
+    // Phiếu đọc tại chỗ đang hoạt động (ai đang đọc)
+    List<Loan> findByInHouseTrueAndStatusOrderByCreatedAtDesc(LoanStatus status);
 
     long countByStatus(LoanStatus status);
 }
