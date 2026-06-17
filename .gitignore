@@ -57,3 +57,5 @@ application-secret.yml
 *.zip
 *.tar.gz
 *.rar
+
+make_pptx.js

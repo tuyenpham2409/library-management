@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head('Nội quy mượn sách')}"></head>
+<body class="phenikaa-body">
+
+<nav th:replace="~{fragments/navbar :: clientNav('rules')}"></nav>
+<div th:replace="~{fragments/common :: messages}"></div>
+
+<main class="container py-4">
+
+    <div class="section-header mb-4">
+        <div class="section-header-icon"><i class="bi bi-journal-text"></i></div>
+        <div>
+            <h1 class="section-title">Nội quy mượn sách</h1>
+            <p class="section-subtitle">
+                Quy định mượn tài liệu tại Thư viện Đại học Phenikaa —
+                áp dụng cho
+                <strong th:switch="${user.role.name()}">
+                    <span th:case="'STUDENT'">Sinh viên</span>
+                    <span th:case="'LECTURER'">Giảng viên</span>
+                    <span th:case="'RESEARCHER'">Nghiên cứu viên</span>
+                </strong>.
+            </p>
+        </div>
+    </div>
+
+    <!-- PHẠT QUÁ HẠN — thông tin chung -->
+    <div class="alert alert-warning d-flex align-items-start gap-3 mb-4">
+        <i class="bi bi-exclamation-triangle-fill fs-4 mt-1 flex-shrink-0"></i>
+        <div>
+            <strong>Phí phạt trả sách trễ: 2.000 VND / ngày / cuốn</strong>
+            <span class="text-muted ms-2 small">— Tính từ ngày đến hạn đến ngày thực tế trả.</span>
+            <br>
+            <span class="small text-muted">
+                Tài khoản có sách quá hạn sẽ bị tạm khoá quyền mượn cho đến khi hoàn trả đầy đủ.
+                Mỗi lần mượn tối đa <strong>5 cuốn</strong> (tổng tất cả loại tài liệu).
+            </span>
+        </div>
+    </div>
+
+    <!-- BẢNG QUY TẮC THEO TỪNG LOẠI TÀI LIỆU -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6 col-lg-3" th:each="rule : ${userRules}">
+
+            <th:block th:with="docName=${rule.docType.name() == 'TEXTBOOK'        ? 'Giáo trình' :
+                                          rule.docType.name() == 'SPECIALIZED_REF' ? 'TK chuyên ngành' :
+                                          rule.docType.name() == 'GENERAL_REF'     ? 'TK tra cứu' :
+                                                                                     'Tài liệu nội sinh'}">
+
+                <!-- Không khả dụng -->
+                <div th:if="${!rule.visible}"
+                     class="card h-100 border-secondary border-opacity-25 opacity-60">
+                    <div class="card-header bg-secondary bg-opacity-10 text-secondary fw-semibold small py-2">
+                        <i class="bi bi-eye-slash me-1"></i>
+                        <span th:text="${docName}"></span>
+                    </div>
+                    <div class="card-body py-3">
+                        <p class="text-muted small mb-0">
+                            <i class="bi bi-dash-circle me-1"></i>
+                            Loại tài liệu này hiện <strong>không khả dụng</strong>.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Không được mượn về -->
+                <div th:if="${rule.visible and rule.maxQuantity == 0}"
+                     class="card h-100 border-danger border-opacity-25">
+                    <div class="card-header bg-danger bg-opacity-10 text-danger fw-semibold small py-2">
+                        <i class="bi bi-lock me-1"></i>
+                        <span th:text="${docName}"></span>
+                    </div>
+                    <div class="card-body py-3">
+                        <p class="text-danger small mb-0">
+                            <i class="bi bi-x-circle me-1"></i>
+                            Không được mượn về. Chỉ đọc tại chỗ (nếu có).
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Bình thường -->
+                <div th:if="${rule.visible and rule.maxQuantity > 0}"
+                     class="card h-100 border-primary border-opacity-25">
+                    <div class="card-header bg-primary bg-opacity-10 text-primary fw-semibold small py-2">
+                        <i class="bi bi-book me-1"></i>
+                        <span th:text="${docName}"></span>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm mb-0 small">
+                            <tbody>
+                                <tr>
+                                    <td class="text-muted ps-3 py-2 border-0" style="width:50%">Số lượng tối đa</td>
+                                    <td class="fw-semibold py-2 border-0"
+                                        th:text="${rule.maxQuantity} + ' cuốn'"></td>
+                                </tr>
+                                <tr class="border-top">
+                                    <td class="text-muted ps-3 py-2">Thời hạn mượn</td>
+                                    <td class="fw-semibold py-2">
+                                        <span th:if="${rule.borrowDays == null}" class="text-success">
+                                            <i class="bi bi-infinity me-1"></i>Không giới hạn
+                                        </span>
+                                        <span th:if="${rule.borrowDays != null}"
+                                              th:text="${rule.borrowDays} + ' ngày'"></span>
+                                    </td>
+                                </tr>
+                                <tr class="border-top">
+                                    <td class="text-muted ps-3 py-2">Gia hạn</td>
+                                    <td class="py-2">
+                                        <span th:if="${rule.maxRenewals == 0}" class="text-secondary">
+                                            Không được gia hạn
+                                        </span>
+                                        <span th:if="${rule.maxRenewals > 0}">
+                                            <strong th:text="${rule.maxRenewals} + ' lần'"></strong>
+                                            <br>
+                                            <span class="text-muted"
+                                                  th:text="'(' + ${rule.renewalDays} + ' ngày/lần)'"></span>
+                                        </span>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </th:block>
+        </div>
+    </div>
+
+    <!-- GHI CHÚ CUỐI TRANG -->
+    <div class="card border-0 bg-light">
+        <div class="card-body small text-muted">
+            <i class="bi bi-info-circle me-1"></i>
+            <strong>Lưu ý thêm:</strong>
+            Tài liệu nội sinh (nhãn đỏ) chỉ được đọc tại chỗ, không mang về nhà.
+            Tài khoản bị khoá (<em>LOCKED</em>) không thể mượn cho đến khi liên hệ thủ thư mở lại.
+            Các quy tắc trên tuân theo Quy chế mượn tài liệu Thư viện Đại học Phenikaa
+            (Mã số: QT.03.TV.DV, ban hành theo QĐ số 688/QĐ-DHP-ĐT&amp;QLSV ngày 27/12/2020).
+        </div>
+    </div>
+
+</main>
+
+<footer th:replace="~{fragments/common :: footer}"></footer>
+<th:block th:replace="~{fragments/common :: scripts}"></th:block>
+</body>
+</html>

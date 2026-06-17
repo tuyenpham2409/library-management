@@ -1,6 +1,7 @@
 package com.library.controller;
 
 import com.library.dto.BookForm;
+import com.library.dto.ReturnBatchItem;
 import com.library.dto.RuleConfigForm;
 import com.library.dto.ValidationResult;
 import com.library.entity.*;
@@ -15,7 +16,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Khu vận hành của THỦ THƯ: đơn mượn, trả sách, thu phí, quản lý sách, quy tắc mượn.
@@ -93,7 +96,7 @@ public class LibrarianController {
         } catch (Exception e) {
             ra.addFlashAttribute("error", "Lỗi: " + e.getMessage());
         }
-        return "redirect:/librarian/loans";
+        return "redirect:/librarian/loans#loan" + id;
     }
 
     @PostMapping("/loans/details/{id}/return")
@@ -116,16 +119,68 @@ public class LibrarianController {
     }
 
     @PostMapping("/loans/details/{id}/pay-fine")
-    public String payFine(@PathVariable Long id, Authentication auth, RedirectAttributes ra) {
-        if (lacks(auth, Permission.LOAN_PAY_FINE, ra)) return "redirect:/librarian/loans";
+    @ResponseBody
+    public Map<String, Object> payFine(@PathVariable Long id, Authentication auth) {
+        Map<String, Object> resp = new HashMap<>();
+        if (!permissionService.has(getCurrentUser(auth).getRole(), Permission.LOAN_PAY_FINE)) {
+            resp.put("ok", false);
+            resp.put("message", "Bạn không được cấp quyền thực hiện thao tác này.");
+            return resp;
+        }
         try {
             boolean ok = loanService.payFine(id);
-            ra.addFlashAttribute(ok ? "success" : "error",
-                    ok ? "Đã ghi nhận thu phí." : "Không có phí cần thu hoặc đã thu trước đó.");
+            resp.put("ok", ok);
+            resp.put("message", ok ? "Đã ghi nhận thu phí." : "Không có phí cần thu hoặc đã thu trước đó.");
         } catch (Exception e) {
-            ra.addFlashAttribute("error", "Lỗi: " + e.getMessage());
+            resp.put("ok", false);
+            resp.put("message", "Lỗi: " + e.getMessage());
         }
-        return "redirect:/librarian/loans";
+        return resp;
+    }
+
+    @PostMapping("/loans/{loanId}/return-batch")
+    @ResponseBody
+    public Map<String, Object> returnBatch(@PathVariable Long loanId,
+                                           @RequestBody List<ReturnBatchItem> items,
+                                           Authentication auth) {
+        Map<String, Object> resp = new HashMap<>();
+        if (!permissionService.has(getCurrentUser(auth).getRole(), Permission.LOAN_RETURN)) {
+            resp.put("ok", false);
+            resp.put("message", "Bạn không được cấp quyền thực hiện thao tác này.");
+            resp.put("results", List.of());
+            resp.put("loanCompleted", false);
+            return resp;
+        }
+        try {
+            List<Map<String, Object>> results = loanService.returnBatch(loanId, items);
+
+            long totalFine = results.stream()
+                    .mapToLong(r -> ((Number) r.get("fine")).longValue()).sum();
+
+            boolean completed = loanService.findById(loanId)
+                    .map(l -> l.getStatus() == LoanStatus.COMPLETED).orElse(false);
+
+            String message;
+            if (results.isEmpty()) {
+                message = "Không có quyển nào ở trạng thái Đang mượn để xử lý.";
+            } else if (totalFine > 0) {
+                message = "Đã trả " + results.size() + " quyển. Tổng phí phạt: "
+                        + String.format("%,d", totalFine) + " VND.";
+            } else {
+                message = "Đã trả " + results.size() + " quyển thành công.";
+            }
+
+            resp.put("ok", true);
+            resp.put("results", results);
+            resp.put("loanCompleted", completed);
+            resp.put("message", message);
+        } catch (Exception e) {
+            resp.put("ok", false);
+            resp.put("message", "Lỗi: " + e.getMessage());
+            resp.put("results", List.of());
+            resp.put("loanCompleted", false);
+        }
+        return resp;
     }
 
     // =========== QUẢN LÝ SÁCH ===========

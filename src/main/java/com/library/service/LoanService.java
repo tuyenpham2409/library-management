@@ -8,13 +8,16 @@ import com.library.util.RuleEngine;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.library.dto.ReturnBatchItem;
 import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -272,26 +275,79 @@ public class LoanService {
                 "Đã thu phí " + String.format("%,d", detail.getFineAmount().longValue())
                         + " VND cho '" + detail.getBook().getTitle() + "' (đơn #" + loan.getId() + ").",
                 "/client/my-loans");
-
         refreshCompletion(loan);
         return true;
     }
 
     /**
      * Đơn HOÀN THÀNH khi: tất cả cuốn đã RETURNED VÀ tất cả phí đã thu (finePaid).
-     * Lúc này mã mượn hết hiệu lực.
      */
     private void refreshCompletion(Loan loan) {
+        if (loan.getStatus() != LoanStatus.BORROWED) return;
         List<LoanDetail> all = loanDetailRepository.findByLoan(loan);
         boolean allReturned = all.stream().allMatch(d -> d.getStatus() == LoanDetailStatus.RETURNED);
-        boolean allSettled = all.stream().allMatch(LoanDetail::isFineSettled);
-        if (allReturned && allSettled && loan.getStatus() == LoanStatus.BORROWED) {
+        boolean allSettled  = all.stream().allMatch(LoanDetail::isFineSettled);
+        if (allReturned && allSettled) {
             loan.setStatus(LoanStatus.COMPLETED);
             loanRepository.save(loan);
             notificationService.notify(loan.getUser(), NotificationType.SUCCESS,
                     "Đơn mượn #" + loan.getId() + " đã hoàn thành. Cảm ơn bạn!",
                     "/client/my-loans");
         }
+    }
+
+    /**
+     * Trả nhiều quyển cùng lúc (batch). Chỉ xử lý các detail đang ở BORROWING.
+     * Trả về danh sách kết quả per-detail để frontend cập nhật UI không cần reload.
+     */
+    @Transactional
+    public List<Map<String, Object>> returnBatch(Long loanId, List<ReturnBatchItem> items) {
+        Loan loan = loanRepository.findById(loanId)
+                .orElseThrow(() -> new RuntimeException("Loan not found: " + loanId));
+
+        List<Map<String, Object>> results = new ArrayList<>();
+
+        for (ReturnBatchItem item : items) {
+            LoanDetail detail = loanDetailRepository.findById(item.getDetailId()).orElse(null);
+            if (detail == null || !detail.getLoan().getId().equals(loanId)) continue;
+            if (detail.getStatus() != LoanDetailStatus.BORROWING) continue;
+
+            BookCondition cond = item.getCondition() != null ? item.getCondition() : BookCondition.GOOD;
+            detail.setReturnDate(LocalDateTime.now());
+            detail.setConditionStatus(cond);
+            detail.setStatus(LoanDetailStatus.RETURNED);
+
+            long fineAmount = ruleEngine.calculateFine(detail);
+            detail.setFineAmount(BigDecimal.valueOf(fineAmount));
+            detail.setFinePaid(fineAmount == 0);
+            loanDetailRepository.save(detail);
+
+            Book book = detail.getBook();
+            book.setAvailableCopies(book.getAvailableCopies() + 1);
+            bookRepository.save(book);
+
+            if (fineAmount > 0) {
+                notificationService.notify(loan.getUser(), NotificationType.WARNING,
+                        "Đã trả '" + book.getTitle() + "' (đơn #" + loan.getId() + "). Phí phạt "
+                                + String.format("%,d", fineAmount) + " VND — vui lòng thanh toán tại quầy.",
+                        "/client/my-loans");
+            } else {
+                notificationService.notify(loan.getUser(), NotificationType.SUCCESS,
+                        "Đã trả '" + book.getTitle() + "' (đơn #" + loan.getId() + ").",
+                        "/client/my-loans");
+            }
+
+            Map<String, Object> r = new HashMap<>();
+            r.put("detailId", detail.getId());
+            r.put("fine", fineAmount);
+            r.put("fineFormatted", fineAmount > 0 ? String.format("%,d đ", fineAmount) : "--");
+            r.put("finePaid", fineAmount == 0);
+            r.put("condition", cond.name());
+            results.add(r);
+        }
+
+        refreshCompletion(loan);
+        return results;
     }
 
     /**

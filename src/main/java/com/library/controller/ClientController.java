@@ -16,6 +16,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import jakarta.servlet.http.HttpSession;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/client")
@@ -173,6 +174,23 @@ public class ClientController {
         session.removeAttribute("cart");
         redirectAttrs.addFlashAttribute("success", "Đã xóa toàn bộ giỏ sách.");
         return "redirect:/client/cart";
+    }
+
+    // =========== NỘI QUY MƯỢN SÁCH ===========
+
+    @GetMapping("/rules")
+    public String borrowingRules(Model model, Authentication auth, HttpSession session) {
+        User user = getCurrentUser(auth);
+        List<BorrowingRule> userRules = ruleService.findAllOrdered().stream()
+                .filter(r -> r.getUserRole() == user.getRole())
+                .collect(Collectors.toList());
+
+        List<CartItem> cart = getCart(session);
+        model.addAttribute("user", user);
+        model.addAttribute("userRules", userRules);
+        model.addAttribute("cartCount", cart.size());
+        model.addAttribute("hasOverdue", loanService.hasOverdue(user));
+        return "client/rules";
     }
 
     // =========== PHIẾU MƯỢN ===========
