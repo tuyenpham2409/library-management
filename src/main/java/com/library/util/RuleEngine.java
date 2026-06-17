@@ -122,6 +122,7 @@ public class RuleEngine {
     public boolean canRenew(LoanDetail detail, BorrowingRule rule) {
         if (rule == null) return false;
         if (rule.getMaxRenewals() == 0) return false;
+        if (detail.getDueDate() != null && LocalDate.now().isAfter(detail.getDueDate())) return false;
         if (detail.getRenewalCount() == null) return true;
         return detail.getRenewalCount() < rule.getMaxRenewals();
     }
