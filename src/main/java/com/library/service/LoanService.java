@@ -154,6 +154,9 @@ public class LoanService {
     public void cancelLoan(Long loanId, String reason, UserRole byRole) {
         Loan loan = loanRepository.findById(loanId)
                 .orElseThrow(() -> new RuntimeException("Loan not found: " + loanId));
+        if (loan.getStatus() != LoanStatus.AWAITING_PICKUP) {
+            throw new RuntimeException("Chỉ có thể huỷ đơn đang ở trạng thái chờ lấy sách.");
+        }
         restoreCopiesAndMarkCancelled(loan, reason, byRole);
 
         notificationService.notify(loan.getUser(), NotificationType.DANGER,
