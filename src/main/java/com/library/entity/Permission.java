@@ -19,6 +19,7 @@ public enum Permission {
     BOOK_DELETE("Xoá sách", Category.BOOK),
 
     // Nhóm xử lý đơn mượn
+    LOAN_CONFIRM_PICKUP("Xác nhận nhận sách (bàn giao)", Category.LOAN),
     LOAN_RETURN("Trả sách", Category.LOAN),
     LOAN_PAY_FINE("Thu phí phạt", Category.LOAN),
     LOAN_CANCEL("Huỷ đơn (kèm lý do)", Category.LOAN),

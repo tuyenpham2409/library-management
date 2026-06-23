@@ -15,7 +15,7 @@ public interface LoanDetailRepository extends JpaRepository<LoanDetail, Long> {
     List<LoanDetail> findByLoan(Loan loan);
     List<LoanDetail> findByStatus(LoanDetailStatus status);
 
-    @Query("SELECT ld FROM LoanDetail ld WHERE ld.loan.user.id = :userId AND ld.status = 'BORROWING'")
+    @Query("SELECT ld FROM LoanDetail ld JOIN FETCH ld.loan l WHERE l.user.id = :userId AND ld.status = 'BORROWING'")
     List<LoanDetail> findActiveBorrowingByUserId(@Param("userId") Long userId);
 
     @Query("SELECT ld FROM LoanDetail ld WHERE ld.status = 'BORROWING' AND ld.dueDate IS NOT NULL AND ld.dueDate < :today")

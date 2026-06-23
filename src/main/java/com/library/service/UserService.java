@@ -1,5 +1,6 @@
 package com.library.service;
 
+import com.library.dto.UserBatchItem;
 import com.library.entity.CardStatus;
 import com.library.entity.NotificationType;
 import com.library.entity.User;
@@ -10,7 +11,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -32,15 +36,65 @@ public class UserService {
         this.notificationService = notificationService;
     }
 
-    /** Admin tạo tài khoản mới (vd: thủ thư) và gán vai trò ngay trên giao diện. */
+    private static final String DEFAULT_PASSWORD = "password123";
+
+    /** Admin tạo tài khoản mới. Mật khẩu để trống → dùng 'password123'. */
     public void create(String studentCode, String fullName, UserRole role, String rawPassword) {
+        String pw = (rawPassword == null || rawPassword.isBlank()) ? DEFAULT_PASSWORD : rawPassword;
         User user = new User();
-        user.setStudentCode(studentCode);
-        user.setFullName(fullName);
+        user.setStudentCode(studentCode.trim());
+        user.setFullName(fullName.trim());
         user.setRole(role);
         user.setCardStatus(CardStatus.ACTIVE);
-        user.setPasswordHash(passwordEncoder.encode(rawPassword));
+        user.setPasswordHash(passwordEncoder.encode(pw));
         userRepository.save(user);
+    }
+
+    /**
+     * Tạo hàng loạt tài khoản. Validate từng dòng rồi lưu, trả về kết quả mỗi dòng.
+     * Dòng lỗi không ảnh hưởng đến các dòng khác.
+     */
+    public List<Map<String, Object>> createBatch(List<UserBatchItem> items) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (int i = 0; i < items.size(); i++) {
+            UserBatchItem item = items.get(i);
+            Map<String, Object> r = new HashMap<>();
+            r.put("index", i);
+            r.put("studentCode", item.getStudentCode());
+
+            String code = item.getStudentCode() == null ? "" : item.getStudentCode().trim();
+            String name = item.getFullName()    == null ? "" : item.getFullName().trim();
+            String roleStr = item.getRole()     == null ? "" : item.getRole().trim().toUpperCase();
+
+            if (code.isEmpty()) {
+                r.put("ok", false); r.put("message", "Mã số không được để trống."); results.add(r); continue;
+            }
+            if (name.isEmpty()) {
+                r.put("ok", false); r.put("message", "Họ tên không được để trống."); results.add(r); continue;
+            }
+
+            UserRole role;
+            try {
+                role = UserRole.valueOf(roleStr);
+            } catch (Exception e) {
+                r.put("ok", false);
+                r.put("message", "Vai trò không hợp lệ: '" + item.getRole() + "'. Dùng STUDENT / LECTURER / RESEARCHER / LIBRARIAN.");
+                results.add(r); continue;
+            }
+
+            if (userRepository.findByStudentCode(code).isPresent()) {
+                r.put("ok", false); r.put("message", "Mã số '" + code + "' đã tồn tại."); results.add(r); continue;
+            }
+
+            try {
+                create(code, name, role, item.getPassword());
+                r.put("ok", true); r.put("message", "Tạo thành công.");
+            } catch (Exception e) {
+                r.put("ok", false); r.put("message", "Lỗi: " + e.getMessage());
+            }
+            results.add(r);
+        }
+        return results;
     }
 
     public List<User> findAll() {

@@ -28,6 +28,7 @@ public class LoanService {
     private final LoanDetailRepository loanDetailRepository;
     private final BookRepository bookRepository;
     private final BorrowingRuleRepository ruleRepository;
+    private final LoanRenewalRepository loanRenewalRepository;
     private final RuleEngine ruleEngine;
     private final NotificationService notificationService;
 
@@ -35,12 +36,14 @@ public class LoanService {
                        LoanDetailRepository loanDetailRepository,
                        BookRepository bookRepository,
                        BorrowingRuleRepository ruleRepository,
+                       LoanRenewalRepository loanRenewalRepository,
                        RuleEngine ruleEngine,
                        NotificationService notificationService) {
         this.loanRepository = loanRepository;
         this.loanDetailRepository = loanDetailRepository;
         this.bookRepository = bookRepository;
         this.ruleRepository = ruleRepository;
+        this.loanRenewalRepository = loanRenewalRepository;
         this.ruleEngine = ruleEngine;
         this.notificationService = notificationService;
     }
@@ -113,23 +116,28 @@ public class LoanService {
     }
 
     /**
-     * SV tự xác nhận đã nhận sách bằng cách nhập lại mã mượn (không cần thủ thư duyệt).
-     * Kiểm tra: đúng chủ đơn + đơn đang chờ lấy + mã mượn khớp.
-     * Khi hợp lệ: chuyển sang ĐANG MƯỢN và set hạn trả theo RuleEngine.
+     * Tìm đơn đang chờ lấy theo mã mượn — thủ thư tra cứu trước khi xác nhận bàn giao.
+     */
+    public Optional<Loan> findByPickupCode(String code) {
+        if (code == null || code.trim().isEmpty()) return Optional.empty();
+        return loanRepository.findByPickupCodeIgnoreCaseAndStatus(code.trim(), LoanStatus.AWAITING_PICKUP);
+    }
+
+    /**
+     * Thủ thư xác nhận bàn giao sách: tìm đơn theo mã, chuyển sang ĐANG MƯỢN và tính hạn trả.
      * @return true nếu xác nhận thành công.
      */
-    public boolean confirmPickup(Long loanId, User user, String code) {
-        Loan loan = loanRepository.findById(loanId).orElse(null);
+    public boolean confirmPickupByLibrarian(String code) {
+        if (code == null || code.trim().isEmpty()) return false;
+        Loan loan = loanRepository.findByPickupCodeIgnoreCaseAndStatus(code.trim(), LoanStatus.AWAITING_PICKUP)
+                .orElse(null);
         if (loan == null) return false;
-        if (!loan.getUser().getId().equals(user.getId())) return false;
-        if (loan.getStatus() != LoanStatus.AWAITING_PICKUP) return false;
-        if (code == null || loan.getPickupCode() == null
-                || !loan.getPickupCode().equalsIgnoreCase(code.trim())) return false;
 
         loan.setStatus(LoanStatus.BORROWED);
         loan.setPickedUpAt(LocalDateTime.now());
         loanRepository.save(loan);
 
+        User user = loan.getUser();
         LocalDate pickupDate = LocalDate.now();
         UserRole role = user.getRole();
         for (LoanDetail detail : loanDetailRepository.findByLoan(loan)) {
@@ -139,11 +147,9 @@ public class LoanService {
         }
 
         notificationService.notify(user, NotificationType.SUCCESS,
-                "Bạn đã nhận sách cho đơn #" + loan.getId() + ". Đơn chuyển sang Đang mượn.",
+                "Thủ thư đã xác nhận bàn giao sách cho đơn #" + loan.getId()
+                        + ". Đơn chuyển sang Đang mượn.",
                 "/client/my-loans");
-        notificationService.notifyRole(UserRole.LIBRARIAN, NotificationType.INFO,
-                user.getFullName() + " đã nhận sách cho đơn #" + loan.getId() + ".",
-                "/librarian/loans?status=BORROWED");
         return true;
     }
 
@@ -192,6 +198,7 @@ public class LoanService {
         loan.setStatus(LoanStatus.CANCELLED);
         loan.setCancelReason(reason);
         loan.setCancelledByRole(byRole);
+        loan.setCancelledAt(LocalDateTime.now());
         loanRepository.save(loan);
     }
 
@@ -271,6 +278,7 @@ public class LoanService {
             return false;
         }
         detail.setFinePaid(true);
+        detail.setFinePaidAt(LocalDateTime.now());
         loanDetailRepository.save(detail);
 
         Loan loan = detail.getLoan();
@@ -292,6 +300,7 @@ public class LoanService {
         boolean allSettled  = all.stream().allMatch(LoanDetail::isFineSettled);
         if (allReturned && allSettled) {
             loan.setStatus(LoanStatus.COMPLETED);
+            loan.setCompletedAt(LocalDateTime.now());
             loanRepository.save(loan);
             notificationService.notify(loan.getUser(), NotificationType.SUCCESS,
                     "Đơn mượn #" + loan.getId() + " đã hoàn thành. Cảm ơn bạn!",
@@ -346,6 +355,10 @@ public class LoanService {
             r.put("fineFormatted", fineAmount > 0 ? String.format("%,d đ", fineAmount) : "--");
             r.put("finePaid", fineAmount == 0);
             r.put("condition", cond.name());
+            r.put("bookTitle", book.getTitle());
+            r.put("returnDateFormatted", detail.getReturnDate()
+                    .format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")));
+            r.put("conditionDamaged", cond == BookCondition.DAMAGED);
             results.add(r);
         }
 
@@ -355,30 +368,40 @@ public class LoanService {
 
     /**
      * Gia hạn sách.
+     * @return null nếu thành công; chuỗi thông báo lỗi đầy đủ nếu thất bại.
      */
-    public boolean renewBook(Long loanDetailId, User user) {
-        LoanDetail detail = loanDetailRepository.findById(loanDetailId)
-                .orElseThrow(() -> new RuntimeException("LoanDetail not found: " + loanDetailId));
-
-        // Kiểm tra quyền sở hữu: chỉ người mượn mới được gia hạn
-        if (!detail.getLoan().getUser().getId().equals(user.getId())) {
-            return false;
-        }
-
-        // Chỉ gia hạn được khi đang ở trạng thái BORROWING
-        if (detail.getStatus() != LoanDetailStatus.BORROWING) {
-            return false;
+    public String renewBook(Long loanDetailId, User user) {
+        LoanDetail detail = loanDetailRepository.findById(loanDetailId).orElse(null);
+        if (detail == null) {
+            return "Không tìm thấy thông tin mượn (id=" + loanDetailId + ").";
         }
 
         Book book = detail.getBook();
+        String title = book.getTitle();
+
+        if (!detail.getLoan().getUser().getId().equals(user.getId())) {
+            return deny(title, "bạn không có quyền gia hạn sách này");
+        }
+
+        if (detail.getStatus() != LoanDetailStatus.BORROWING) {
+            String statusReason = switch (detail.getStatus()) {
+                case RESERVED -> "sách chưa được bàn giao, chưa thể gia hạn";
+                case RETURNED -> "sách đã được trả";
+                default       -> "trạng thái mượn không hợp lệ (" + detail.getStatus() + ")";
+            };
+            return deny(title, statusReason);
+        }
+
         Optional<BorrowingRule> ruleOpt = ruleRepository
                 .findByUserRoleAndDocType(user.getRole(), book.getDocType());
+        BorrowingRule rule = ruleOpt.orElse(null);
 
-        if (ruleOpt.isEmpty()) return false;
-        BorrowingRule rule = ruleOpt.get();
+        String denyReason = ruleEngine.getRenewalDenyReason(detail, rule);
+        if (denyReason != null) return deny(title, denyReason);
 
-        if (!ruleEngine.canRenew(detail, rule)) return false;
-        if (rule.getRenewalDays() == null || rule.getRenewalDays() == 0) return false;
+        if (rule.getRenewalDays() == null || rule.getRenewalDays() == 0) {
+            return deny(title, "số ngày gia hạn chưa được cấu hình");
+        }
 
         LocalDate newDueDate = (detail.getDueDate() != null)
                 ? detail.getDueDate().plusDays(rule.getRenewalDays())
@@ -388,11 +411,21 @@ public class LoanService {
         detail.setRenewalCount(detail.getRenewalCount() == null ? 1 : detail.getRenewalCount() + 1);
         loanDetailRepository.save(detail);
 
+        LoanRenewal renewal = new LoanRenewal();
+        renewal.setLoanDetail(detail);
+        renewal.setRenewedAt(LocalDateTime.now());
+        renewal.setNewDueDate(newDueDate);
+        loanRenewalRepository.save(renewal);
+
         notificationService.notify(user, NotificationType.SUCCESS,
-                "Gia hạn '" + book.getTitle() + "' thành công. Hạn trả mới: "
+                "Gia hạn '" + title + "' thành công. Hạn trả mới: "
                         + newDueDate.format(DATE_FMT) + ".",
                 "/client/my-loans");
-        return true;
+        return null;
+    }
+
+    private static String deny(String bookTitle, String reason) {
+        return "Không thể gia hạn quyển \"" + bookTitle + "\": " + reason + ".";
     }
 
     /**

@@ -54,6 +54,12 @@ public class Loan {
     @Column(name = "cancelled_by_role", length = 20)
     private UserRole cancelledByRole;
 
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+
+    @Column(name = "cancelled_at")
+    private LocalDateTime cancelledAt;
+
     @OneToMany(mappedBy = "loan", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private List<LoanDetail> loanDetails;
 

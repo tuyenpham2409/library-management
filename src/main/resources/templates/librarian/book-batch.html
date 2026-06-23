@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/common :: head('Thêm nhiều sách')}"></head>
+<body class="phenikaa-body">
+
+<nav th:replace="~{fragments/navbar :: librarianNav('books')}"></nav>
+<div th:replace="~{fragments/common :: messages}"></div>
+
+<!-- CSRF cho AJAX -->
+<span id="js-csrf" th:attr="data-token=${_csrf.token}" style="display:none"></span>
+
+<!-- Nhúng docTypes vào JS -->
+<script th:inline="javascript">
+    const DOC_TYPES = /*[[${docTypes}]]*/ [];
+</script>
+
+<main class="container-fluid py-4" style="max-width:1400px">
+    <div class="d-flex align-items-center justify-content-between mb-4">
+        <div class="section-header mb-0">
+            <div class="section-header-icon"><i class="bi bi-table"></i></div>
+            <div>
+                <h1 class="section-title">Thêm nhiều sách</h1>
+                <p class="section-subtitle">Nhập tay từng dòng hoặc import từ file Excel</p>
+            </div>
+        </div>
+        <a href="/librarian/books" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i>Quay lại
+        </a>
+    </div>
+
+    <!-- TABS -->
+    <ul class="nav nav-tabs mb-3" id="importTabs">
+        <li class="nav-item">
+            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-manual" type="button">
+                <i class="bi bi-keyboard me-1"></i>Nhập tay
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-excel" type="button">
+                <i class="bi bi-file-earmark-excel me-1"></i>Import Excel
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content">
+
+        <!-- ══════════════════════════════════════════════
+             TAB 1 – NHẬP TAY
+        ══════════════════════════════════════════════ -->
+        <div class="tab-pane fade show active" id="tab-manual">
+            <!-- Thanh công cụ -->
+            <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+                <button type="button" class="btn btn-outline-primary btn-sm" id="btn-add-row">
+                    <i class="bi bi-plus-lg me-1"></i>Thêm hàng
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm" id="btn-clear-all">
+                    <i class="bi bi-trash3 me-1"></i>Xoá tất cả
+                </button>
+                <span class="text-muted small ms-2" id="row-count">0 hàng</span>
+                <div class="ms-auto d-flex gap-2 align-items-center">
+                    <div id="batch-result" class="small"></div>
+                    <button type="button" class="btn btn-phenikaa" id="btn-save-all">
+                        <i class="bi bi-check-lg me-2"></i>Lưu tất cả
+                    </button>
+                </div>
+            </div>
+
+            <!-- Bảng nhập liệu -->
+            <div class="card p-0">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm align-middle mb-0" id="batch-table">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th style="width:36px" class="text-center">#</th>
+                                <th style="min-width:220px">Tên sách <span class="text-danger">*</span></th>
+                                <th style="min-width:160px">Tác giả <span class="text-danger">*</span></th>
+                                <th style="min-width:140px">ISBN</th>
+                                <th style="min-width:170px">Loại TL <span class="text-danger">*</span></th>
+                                <th style="min-width:130px">Mã phân loại</th>
+                                <th style="min-width:130px">Danh mục</th>
+                                <th style="min-width:150px">Nhà xuất bản</th>
+                                <th style="width:80px">Năm</th>
+                                <th style="width:80px">Tổng</th>
+                                <th style="width:80px">Còn sẵn</th>
+                                <th style="width:44px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="batch-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <p class="text-muted small mt-2">
+                <i class="bi bi-info-circle me-1"></i>
+                Hàng có <strong>Tên sách</strong> bỏ trống sẽ bị bỏ qua khi lưu.
+                Trường <span class="text-danger">*</span> là bắt buộc.
+            </p>
+        </div><!-- /tab-manual -->
+
+        <!-- ══════════════════════════════════════════════
+             TAB 2 – IMPORT EXCEL
+        ══════════════════════════════════════════════ -->
+        <div class="tab-pane fade" id="tab-excel">
+            <!-- Bước 1: tải mẫu + chọn file -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+                        <a href="/librarian/books/import-template" class="btn btn-outline-success btn-sm">
+                            <i class="bi bi-download me-1"></i>Tải file mẫu (.xlsx)
+                        </a>
+                        <span class="text-muted small">Tải về, điền thông tin rồi upload lên bên dưới.</span>
+                    </div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-auto">
+                            <label class="form-label small text-muted mb-1">Chọn file Excel (.xlsx / .xls)</label>
+                            <input type="file" class="form-control form-control-sm" id="excel-file"
+                                   accept=".xlsx,.xls" style="max-width:340px">
+                        </div>
+                        <div class="col-auto">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-preview-excel">
+                                <i class="bi bi-eye me-1"></i>Xem trước
+                            </button>
+                        </div>
+                        <div class="col-auto" id="excel-status"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bước 2: preview + chỉnh sửa -->
+            <div id="excel-preview-wrap" style="display:none">
+                <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+                    <span id="excel-summary" class="small fw-semibold"></span>
+                    <span class="text-muted small">Bạn có thể sửa trực tiếp trước khi xác nhận.</span>
+                </div>
+                <div class="card p-0 mb-3">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm align-middle mb-0" id="excel-preview-table">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width:32px" class="text-center">#</th>
+                                    <th style="min-width:200px">Tên sách <span class="text-danger">*</span></th>
+                                    <th style="min-width:150px">Tác giả <span class="text-danger">*</span></th>
+                                    <th style="min-width:130px">ISBN</th>
+                                    <th style="min-width:160px">Loại TL <span class="text-danger">*</span></th>
+                                    <th style="min-width:120px">Mã phân loại</th>
+                                    <th style="min-width:120px">Danh mục</th>
+                                    <th style="min-width:140px">Nhà XB</th>
+                                    <th style="width:70px">Năm</th>
+                                    <th style="width:70px">Tổng</th>
+                                    <th style="width:70px">Còn</th>
+                                    <th style="min-width:160px">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody id="excel-preview-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <button type="button" class="btn btn-phenikaa btn-sm" id="btn-confirm-import">
+                        <i class="bi bi-check2-circle me-1"></i>Xác nhận nhập
+                    </button>
+                    <div id="excel-import-status" class="small ms-1"></div>
+                </div>
+
+                <!-- Kết quả import -->
+                <div id="excel-result" class="mt-3" style="display:none">
+                    <h6 class="fw-bold small">Kết quả nhập:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-0">
+                            <thead class="table-light">
+                                <tr><th>Tên sách</th><th>Kết quả</th></tr>
+                            </thead>
+                            <tbody id="excel-result-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div><!-- /tab-excel -->
+
+    </div><!-- /tab-content -->
+</main>
+
+<footer th:replace="~{fragments/common :: footer}"></footer>
+<th:block th:replace="~{fragments/common :: scripts}"></th:block>
+
+<script>
+(function () {
+    const CSRF = document.getElementById('js-csrf')?.dataset.token || '';
+
+    const DOC_LABEL = {
+        'TEXTBOOK':        'Giáo trình',
+        'SPECIALIZED_REF': 'Tham khảo chuyên ngành',
+        'GENERAL_REF':     'Tham khảo tra cứu',
+        'RESTRICTED':      'Tài liệu nội sinh'
+    };
+
+    function esc(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g,'&amp;').replace(/"/g,'&quot;')
+            .replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function buildDocTypeSelect(selected) {
+        const opts = '<option value="">-- Chọn --</option>' +
+            (DOC_TYPES || []).map(function(t) {
+                return '<option value="' + t + '"' + (t === selected ? ' selected' : '') + '>' +
+                       (DOC_LABEL[t] || t) + '</option>';
+            }).join('');
+        return '<select class="form-select form-select-sm f-doctype">' + opts + '</select>';
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // TAB 1 – NHẬP TAY
+    // ══════════════════════════════════════════════════════════
+    const tbody   = document.getElementById('batch-tbody');
+    let rowIndex  = 0;
+
+    function addRow(data) {
+        data = data || {};
+        rowIndex++;
+        const tr = document.createElement('tr');
+        tr.dataset.rowIndex = rowIndex;
+        tr.innerHTML =
+            '<td class="text-center text-muted small row-num">' + rowIndex + '</td>' +
+            '<td><input type="text" class="form-control form-control-sm f-title"   value="' + esc(data.title || '')             + '" placeholder="Tên sách..."></td>' +
+            '<td><input type="text" class="form-control form-control-sm f-author"  value="' + esc(data.author || '')            + '" placeholder="Tác giả..."></td>' +
+            '<td><input type="text" class="form-control form-control-sm f-isbn"    value="' + esc(data.isbn || '')              + '" placeholder="978-..."></td>' +
+            '<td>' + buildDocTypeSelect(data.docType || '') + '</td>' +
+            '<td><input type="text" class="form-control form-control-sm f-classcode" value="' + esc(data.classificationCode || '') + '" placeholder="TOAN.001"></td>' +
+            '<td><input type="text" class="form-control form-control-sm f-category" value="' + esc(data.category || '')         + '" placeholder="Toán học..."></td>' +
+            '<td><input type="text" class="form-control form-control-sm f-publisher" value="' + esc(data.publisher || '')       + '" placeholder="NXB..."></td>' +
+            '<td><input type="number" class="form-control form-control-sm f-year"  value="' + esc(data.publishYear || '')       + '" min="1900" max="2030" placeholder="2024"></td>' +
+            '<td><input type="number" class="form-control form-control-sm f-total" value="' + (data.totalCopies != null ? data.totalCopies : 1) + '" min="0"></td>' +
+            '<td><input type="number" class="form-control form-control-sm f-avail" value="' + (data.availableCopies != null ? data.availableCopies : 1) + '" min="0"></td>' +
+            '<td class="text-center"><button type="button" class="btn btn-outline-danger btn-sm btn-remove-row" title="Xoá hàng"><i class="bi bi-x-lg"></i></button></td>';
+        tbody.appendChild(tr);
+        updateRowCount();
+        return tr;
+    }
+
+    function updateRowCount() {
+        const n = tbody.querySelectorAll('tr').length;
+        document.getElementById('row-count').textContent = n + ' hàng';
+    }
+
+    function collectManualRows() {
+        const rows = [];
+        tbody.querySelectorAll('tr').forEach(function(tr) {
+            const title = tr.querySelector('.f-title').value.trim();
+            if (!title) return;
+            rows.push({
+                title:              title,
+                author:             tr.querySelector('.f-author').value.trim() || null,
+                isbn:               tr.querySelector('.f-isbn').value.trim() || null,
+                docType:            tr.querySelector('.f-doctype').value || null,
+                classificationCode: tr.querySelector('.f-classcode').value.trim() || null,
+                category:           tr.querySelector('.f-category').value.trim() || null,
+                publisher:          tr.querySelector('.f-publisher').value.trim() || null,
+                publishYear:        parseInt(tr.querySelector('.f-year').value) || null,
+                totalCopies:        parseInt(tr.querySelector('.f-total').value) || 1,
+                availableCopies:    parseInt(tr.querySelector('.f-avail').value) || 1
+            });
+        });
+        return rows;
+    }
+
+    function validateManual(rows) {
+        const errs = [];
+        tbody.querySelectorAll('tr').forEach(function(tr, i) {
+            const title   = tr.querySelector('.f-title').value.trim();
+            if (!title) return;
+            const author  = tr.querySelector('.f-author').value.trim();
+            const docType = tr.querySelector('.f-doctype').value;
+            const total   = parseInt(tr.querySelector('.f-total').value);
+            const avail   = parseInt(tr.querySelector('.f-avail').value);
+            if (!author)  errs.push('Hàng ' + (i+1) + ': thiếu Tác giả');
+            if (!docType) errs.push('Hàng ' + (i+1) + ': thiếu Loại tài liệu');
+            if (!isNaN(total) && !isNaN(avail) && avail > total)
+                errs.push('Hàng ' + (i+1) + ': còn sẵn không được vượt quá tổng số');
+        });
+        return errs;
+    }
+
+    function setBatchResult(msg, ok) {
+        const el = document.getElementById('batch-result');
+        el.innerHTML = '<span class="' + (ok ? 'text-success' : 'text-danger') + '">' +
+            '<i class="bi bi-' + (ok ? 'check-circle' : 'exclamation-circle') + ' me-1"></i>' + msg + '</span>';
+        if (ok) setTimeout(function() { el.innerHTML = ''; }, 5000);
+    }
+
+    document.getElementById('btn-add-row').addEventListener('click', function() {
+        addRow();
+        const rows = tbody.querySelectorAll('tr');
+        if (rows.length) rows[rows.length - 1].querySelector('.f-title').focus();
+    });
+
+    document.getElementById('btn-clear-all').addEventListener('click', function() {
+        if (!tbody.querySelectorAll('tr').length) return;
+        if (!confirm('Xoá tất cả hàng hiện tại?')) return;
+        tbody.innerHTML = '';
+        rowIndex = 0;
+        updateRowCount();
+    });
+
+    tbody.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-remove-row');
+        if (!btn) return;
+        btn.closest('tr').remove();
+        tbody.querySelectorAll('tr').forEach(function(r, i) {
+            const c = r.querySelector('.row-num');
+            if (c) c.textContent = i + 1;
+        });
+        updateRowCount();
+    });
+
+    document.getElementById('btn-save-all').addEventListener('click', async function() {
+        const rows = collectManualRows();
+        if (!rows.length) { setBatchResult('Không có hàng nào có tên sách để lưu.', false); return; }
+        const errs = validateManual(rows);
+        if (errs.length) { setBatchResult(errs.join(' | '), false); return; }
+
+        const btn = document.getElementById('btn-save-all');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Đang lưu...';
+        try {
+            const resp = await fetch('/librarian/books/batch', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': CSRF},
+                body: JSON.stringify(rows)
+            });
+            const data = await resp.json();
+            setBatchResult(data.message, data.ok);
+            if (data.ok) setTimeout(function() { window.location.href = '/librarian/books'; }, 1200);
+        } catch (err) {
+            setBatchResult('Lỗi kết nối: ' + err.message, false);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg me-2"></i>Lưu tất cả';
+        }
+    });
+
+    // Khởi tạo 3 hàng trống
+    addRow(); addRow(); addRow();
+
+    // ══════════════════════════════════════════════════════════
+    // TAB 2 – IMPORT EXCEL
+    // ══════════════════════════════════════════════════════════
+    function setExcelStatus(html, ok) {
+        const el = document.getElementById('excel-status');
+        el.innerHTML = ok === false
+            ? '<span class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i>' + html + '</span>'
+            : '<span class="small">' + html + '</span>';
+    }
+
+    function setImportStatus(html, ok) {
+        const el = document.getElementById('excel-import-status');
+        el.innerHTML = ok === false
+            ? '<span class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i>' + html + '</span>'
+            : '<span class="small">' + html + '</span>';
+    }
+
+    function statusBadges(errors) {
+        if (!errors || !errors.length)
+            return '<span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>Hợp lệ</span>';
+        return errors.map(function(e) {
+            return '<span class="badge bg-danger me-1">' + esc(e) + '</span>';
+        }).join('');
+    }
+
+    function renderPreview(rows) {
+        const tbody2 = document.getElementById('excel-preview-body');
+        tbody2.innerHTML = '';
+        rows.forEach(function(row, i) {
+            const tr = document.createElement('tr');
+            if (!row.valid) tr.classList.add('table-warning');
+            tr.innerHTML =
+                '<td class="text-muted small text-center">' + (i + 1) + '</td>' +
+                '<td><input type="text" class="form-control form-control-sm ep-title"     value="' + esc(row.title)              + '"></td>' +
+                '<td><input type="text" class="form-control form-control-sm ep-author"    value="' + esc(row.author)             + '"></td>' +
+                '<td><input type="text" class="form-control form-control-sm ep-isbn"      value="' + esc(row.isbn)               + '"></td>' +
+                '<td>' + buildDocTypeSelect(row.docType) + '</td>' +
+                '<td><input type="text" class="form-control form-control-sm ep-classcode" value="' + esc(row.classificationCode) + '"></td>' +
+                '<td><input type="text" class="form-control form-control-sm ep-category"  value="' + esc(row.category)           + '"></td>' +
+                '<td><input type="text" class="form-control form-control-sm ep-publisher" value="' + esc(row.publisher)          + '"></td>' +
+                '<td><input type="number" class="form-control form-control-sm ep-year"    value="' + esc(row.publishYear || '')   + '" min="1900" max="2030"></td>' +
+                '<td><input type="number" class="form-control form-control-sm ep-total"   value="' + esc(row.totalCopies)        + '" min="0"></td>' +
+                '<td><input type="number" class="form-control form-control-sm ep-avail"   value="' + esc(row.availableCopies)    + '" min="0"></td>' +
+                '<td class="ep-status">' + statusBadges(row.errors) + '</td>';
+            tbody2.appendChild(tr);
+        });
+    }
+
+    document.getElementById('btn-preview-excel').addEventListener('click', async function() {
+        const fileInput = document.getElementById('excel-file');
+        if (!fileInput.files.length) { setExcelStatus('Vui lòng chọn file trước.', false); return; }
+
+        setExcelStatus('<span class="spinner-border spinner-border-sm me-1"></span>Đang đọc...', null);
+        document.getElementById('excel-preview-wrap').style.display = 'none';
+        document.getElementById('excel-result').style.display = 'none';
+
+        const formData = new FormData();
+        formData.append('file', fileInput.files[0]);
+        formData.append('_csrf', CSRF);
+
+        try {
+            const resp = await fetch('/librarian/books/import-preview', {method:'POST', body: formData});
+            const data = await resp.json();
+            if (!data.ok) { setExcelStatus(data.message || 'Không đọc được file.', false); return; }
+
+            renderPreview(data.rows);
+            document.getElementById('excel-summary').innerHTML =
+                'Tổng <strong>' + data.rows.length + '</strong> hàng — ' +
+                '<span class="text-success fw-semibold">' + data.validCount + ' hợp lệ</span>, ' +
+                '<span class="text-danger fw-semibold">'  + data.invalidCount + ' có lỗi</span>';
+            document.getElementById('excel-preview-wrap').style.display = '';
+            setExcelStatus('', null);
+        } catch (err) {
+            setExcelStatus('Lỗi: ' + err.message, false);
+        }
+    });
+
+    document.getElementById('btn-confirm-import').addEventListener('click', async function() {
+        // Thu thập dữ liệu từ bảng preview (đã chỉnh sửa)
+        const rows = [];
+        let hasError = false;
+        document.querySelectorAll('#excel-preview-body tr').forEach(function(tr) {
+            const title   = tr.querySelector('.ep-title').value.trim();
+            const author  = tr.querySelector('.ep-author').value.trim();
+            const docType = tr.querySelector('.f-doctype').value;
+            const total   = parseInt(tr.querySelector('.ep-total').value) || 1;
+            const avail   = parseInt(tr.querySelector('.ep-avail').value) || 1;
+
+            const errs = [];
+            if (!title)   errs.push('Thiếu tên sách');
+            if (!author)  errs.push('Thiếu tác giả');
+            if (!docType) errs.push('Thiếu loại TL');
+            if (avail > total) errs.push('Còn sẵn > tổng số');
+
+            tr.querySelector('.ep-status').innerHTML = statusBadges(errs);
+            tr.className = errs.length ? 'table-warning' : '';
+            if (errs.length) { hasError = true; return; }
+
+            rows.push({
+                title:              title,
+                author:             author || null,
+                isbn:               tr.querySelector('.ep-isbn').value.trim() || null,
+                docType:            docType || null,
+                classificationCode: tr.querySelector('.ep-classcode').value.trim() || null,
+                category:           tr.querySelector('.ep-category').value.trim() || null,
+                publisher:          tr.querySelector('.ep-publisher').value.trim() || null,
+                publishYear:        parseInt(tr.querySelector('.ep-year').value) || null,
+                totalCopies:        total,
+                availableCopies:    avail
+            });
+        });
+
+        if (hasError) {
+            setImportStatus('Vui lòng sửa các hàng lỗi (đánh dấu vàng) trước khi xác nhận.', false);
+            return;
+        }
+        if (!rows.length) { setImportStatus('Không có hàng hợp lệ để nhập.', false); return; }
+
+        const btn = document.getElementById('btn-confirm-import');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Đang nhập...';
+
+        try {
+            const resp = await fetch('/librarian/books/batch', {
+                method: 'POST',
+                headers: {'Content-Type':'application/json', 'X-CSRF-TOKEN': CSRF},
+                body: JSON.stringify(rows)
+            });
+            const data = await resp.json();
+
+            // Hiện kết quả
+            const resultBody = document.getElementById('excel-result-body');
+            resultBody.innerHTML = '';
+            if (data.results) {
+                data.results.forEach(function(r) {
+                    const tr = document.createElement('tr');
+                    tr.className = r.ok ? 'table-success' : 'table-danger';
+                    tr.innerHTML =
+                        '<td>' + esc(r.title || '') + '</td>' +
+                        '<td>' + (r.ok
+                            ? '<i class="bi bi-check-circle text-success me-1"></i>'
+                            : '<i class="bi bi-x-circle text-danger me-1"></i>') +
+                        esc(r.message) + '</td>';
+                    resultBody.appendChild(tr);
+                });
+            }
+            document.getElementById('excel-result').style.display = '';
+
+            setImportStatus(
+                '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + data.message + '</span>',
+                null
+            );
+            if (data.ok) setTimeout(function() { window.location.href = '/librarian/books'; }, 1500);
+        } catch (err) {
+            setImportStatus('Lỗi kết nối: ' + err.message, false);
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check2-circle me-1"></i>Xác nhận nhập';
+        }
+    });
+
+}());
+</script>
+
+</body>
+</html>

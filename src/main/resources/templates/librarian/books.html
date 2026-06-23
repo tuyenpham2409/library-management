@@ -12,12 +12,72 @@
             <div class="section-header-icon"><i class="bi bi-book-half"></i></div>
             <div>
                 <h1 class="section-title">Quản lý sách</h1>
-                <p class="section-subtitle" th:text="${books.size()} + ' tài liệu trong hệ thống'"></p>
+                <p class="section-subtitle"
+               th:text="${(keyword != null or selectedDocType != null or availableOnly)
+                          ? books.size() + ' kết quả tìm được'
+                          : books.size() + ' tài liệu trong hệ thống'}"></p>
             </div>
         </div>
-        <a th:href="@{/librarian/books/new}" class="btn btn-phenikaa"
-           th:if="${@permissionService.has(currentUser.role, T(com.library.entity.Permission).BOOK_CREATE)}">
-            <i class="bi bi-plus-lg me-2"></i>Thêm sách mới</a>
+        <div class="btn-group"
+             th:if="${@permissionService.has(currentUser.role, T(com.library.entity.Permission).BOOK_CREATE)}">
+            <a th:href="@{/librarian/books/new}" class="btn btn-phenikaa">
+                <i class="bi bi-plus-lg me-2"></i>Thêm sách mới
+            </a>
+            <button type="button" class="btn btn-phenikaa dropdown-toggle dropdown-toggle-split"
+                    data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="visually-hidden">Tuỳ chọn</span>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <a class="dropdown-item" th:href="@{/librarian/books/new}">
+                        <i class="bi bi-file-earmark-plus me-2"></i>Thêm 1 sách
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" th:href="@{/librarian/books/new-batch}">
+                        <i class="bi bi-table me-2"></i>Thêm nhiều sách (danh sách)
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- THANH TÌM KIẾM & FILTER -->
+    <div class="card mb-3">
+        <div class="card-body py-2">
+            <form th:action="@{/librarian/books}" method="get" class="row g-2 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label small text-muted mb-1">Tìm theo tên / tác giả / ISBN</label>
+                    <input type="text" name="keyword" class="form-control form-control-sm"
+                           th:value="${keyword}" placeholder="Nhập từ khoá...">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-muted mb-1">Loại tài liệu</label>
+                    <select name="docType" class="form-select form-select-sm">
+                        <option value="">-- Tất cả loại --</option>
+                        <option value="TEXTBOOK"       th:selected="${selectedDocType != null and selectedDocType.name() == 'TEXTBOOK'}">Giáo trình</option>
+                        <option value="SPECIALIZED_REF" th:selected="${selectedDocType != null and selectedDocType.name() == 'SPECIALIZED_REF'}">TK Chuyên ngành</option>
+                        <option value="GENERAL_REF"    th:selected="${selectedDocType != null and selectedDocType.name() == 'GENERAL_REF'}">TK Tra cứu</option>
+                        <option value="RESTRICTED"     th:selected="${selectedDocType != null and selectedDocType.name() == 'RESTRICTED'}">Tài liệu nội sinh</option>
+                    </select>
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <div class="form-check mb-1">
+                        <input class="form-check-input" type="checkbox" name="availableOnly" id="availableOnly"
+                               value="true" th:checked="${availableOnly}">
+                        <label class="form-check-label small" for="availableOnly">Còn sẵn</label>
+                    </div>
+                </div>
+                <div class="col-md-2 d-flex gap-2">
+                    <button type="submit" class="btn btn-phenikaa btn-sm flex-fill">
+                        <i class="bi bi-search me-1"></i>Tìm
+                    </button>
+                    <a th:href="@{/librarian/books}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div class="card table-card">
@@ -27,6 +87,11 @@
                     <th class="text-center">Tổng</th><th class="text-center">Còn</th><th>Hành động</th></tr>
             </thead>
             <tbody>
+                <tr th:if="${books.isEmpty()}">
+                    <td colspan="7" class="text-center text-muted py-4">
+                        <i class="bi bi-search me-1"></i>Không tìm thấy tài liệu nào phù hợp.
+                    </td>
+                </tr>
                 <tr th:each="book : ${books}">
                     <td>
                         <div class="fw-semibold" th:text="${book.title}"></div>

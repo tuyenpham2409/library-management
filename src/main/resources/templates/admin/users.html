@@ -6,6 +6,9 @@
 <nav th:replace="~{fragments/navbar :: adminNav('users')}"></nav>
 <div th:replace="~{fragments/common :: messages}"></div>
 
+<!-- CSRF cho AJAX -->
+<span id="js-csrf" th:attr="data-token=${_csrf.token}" style="display:none"></span>
+
 <main class="container py-4">
     <div class="section-header mb-4">
         <div class="section-header-icon"><i class="bi bi-people-fill"></i></div>
@@ -15,50 +18,215 @@
         </div>
     </div>
 
-    <!-- TẠO TÀI KHOẢN -->
+    <!-- ===== KHU TẠO TÀI KHOẢN (3 tab) ===== -->
     <div class="card mb-4">
-        <div class="card-body">
-            <h2 class="h6 fw-bold mb-3"><i class="bi bi-person-plus me-2"></i>Tạo tài khoản mới</h2>
-            <form th:action="@{/admin/users}" method="post" class="row g-2 align-items-end">
-                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                <div class="col-md-3"><label class="form-label small text-muted">Mã số</label><input type="text" name="studentCode" class="form-control" required></div>
-                <div class="col-md-3"><label class="form-label small text-muted">Họ tên</label><input type="text" name="fullName" class="form-control" required></div>
-                <div class="col-md-2"><label class="form-label small text-muted">Vai trò</label>
-                    <select name="role" class="form-select" required>
-                        <option th:each="r : ${roles}" th:value="${r}" th:text="${r}"></option>
-                    </select>
-                </div>
-                <div class="col-md-2"><label class="form-label small text-muted">Mật khẩu</label><input type="text" name="password" class="form-control" required></div>
-                <div class="col-md-2"><button type="submit" class="btn btn-phenikaa w-100"><i class="bi bi-plus-lg me-1"></i>Tạo</button></div>
-            </form>
+        <div class="card-header pb-0 bg-white border-bottom-0">
+            <ul class="nav nav-tabs" id="createTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="tab-single-btn" data-bs-toggle="tab"
+                            data-bs-target="#tab-single" type="button">
+                        <i class="bi bi-person-plus me-1"></i>Tạo 1 tài khoản
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-batch-btn" data-bs-toggle="tab"
+                            data-bs-target="#tab-batch" type="button">
+                        <i class="bi bi-table me-1"></i>Thêm hàng loạt
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="tab-excel-btn" data-bs-toggle="tab"
+                            data-bs-target="#tab-excel" type="button">
+                        <i class="bi bi-file-earmark-excel me-1"></i>Import Excel
+                    </button>
+                </li>
+            </ul>
         </div>
-    </div>
 
+        <div class="card-body tab-content pt-3" id="createTabContent">
+
+            <!-- ── TAB 1: TẠO 1 TÀI KHOẢN ── -->
+            <div class="tab-pane fade show active" id="tab-single" role="tabpanel">
+                <form th:action="@{/admin/users}" method="post" class="row g-2 align-items-end">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Mã số <span class="text-danger">*</span></label>
+                        <input type="text" name="studentCode" class="form-control" required>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Họ tên <span class="text-danger">*</span></label>
+                        <input type="text" name="fullName" class="form-control" required>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Vai trò <span class="text-danger">*</span></label>
+                        <select name="role" class="form-select" required>
+                            <option th:each="r : ${roles}" th:value="${r}"
+                                    th:text="${r.name() == 'STUDENT' ? 'Sinh viên' :
+                                               r.name() == 'LECTURER' ? 'Giảng viên' :
+                                               r.name() == 'RESEARCHER' ? 'Nghiên cứu viên' :
+                                               r.name() == 'LIBRARIAN' ? 'Thủ thư' : r.name()}"></option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Mật khẩu</label>
+                        <input type="text" name="password" class="form-control" placeholder="Mặc định: password123">
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-phenikaa w-100">
+                            <i class="bi bi-plus-lg me-1"></i>Tạo
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- ── TAB 2: THÊM HÀNG LOẠT (bảng nhập tay) ── -->
+            <div class="tab-pane fade" id="tab-batch" role="tabpanel">
+                <p class="text-muted small mb-2">Nhập thông tin từng người dùng. Mật khẩu để trống → dùng mặc định <code>password123</code>.</p>
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle mb-2" id="batch-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width:40px">#</th>
+                                <th>Mã số <span class="text-danger">*</span></th>
+                                <th>Họ tên <span class="text-danger">*</span></th>
+                                <th style="width:160px">Vai trò <span class="text-danger">*</span></th>
+                                <th>Mật khẩu</th>
+                                <th style="width:40px"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="batch-body">
+                            <!-- Hàng đầu mặc định -->
+                        </tbody>
+                    </table>
+                </div>
+                <div class="d-flex gap-2 align-items-center flex-wrap">
+                    <button type="button" class="btn btn-outline-secondary btn-sm" id="add-batch-row">
+                        <i class="bi bi-plus-lg me-1"></i>Thêm hàng
+                    </button>
+                    <button type="button" class="btn btn-phenikaa btn-sm" id="save-batch">
+                        <i class="bi bi-save me-1"></i>Lưu tất cả
+                    </button>
+                    <div id="batch-status" class="small ms-1"></div>
+                </div>
+                <!-- Kết quả batch -->
+                <div id="batch-result" class="mt-3" style="display:none">
+                    <h6 class="fw-bold small">Kết quả:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered mb-0" id="batch-result-table">
+                            <thead class="table-light">
+                                <tr><th>Mã số</th><th>Kết quả</th></tr>
+                            </thead>
+                            <tbody id="batch-result-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── TAB 3: IMPORT EXCEL ── -->
+            <div class="tab-pane fade" id="tab-excel" role="tabpanel">
+                <div class="d-flex align-items-center gap-3 flex-wrap mb-3">
+                    <a href="/admin/users/import-template" class="btn btn-outline-success btn-sm">
+                        <i class="bi bi-download me-1"></i>Tải file mẫu (.xlsx)
+                    </a>
+                    <span class="text-muted small">Tải về rồi điền thông tin, sau đó chọn file upload bên dưới.</span>
+                </div>
+                <div class="row g-2 align-items-end mb-3">
+                    <div class="col-auto">
+                        <label class="form-label small text-muted">Chọn file Excel (.xlsx / .xls)</label>
+                        <input type="file" class="form-control form-control-sm" id="excel-file"
+                               accept=".xlsx,.xls" style="max-width:320px">
+                    </div>
+                    <div class="col-auto">
+                        <button type="button" class="btn btn-outline-primary btn-sm" id="preview-excel-btn">
+                            <i class="bi bi-eye me-1"></i>Xem trước
+                        </button>
+                    </div>
+                    <div class="col-auto" id="excel-status"></div>
+                </div>
+
+                <!-- Preview table (ẩn cho đến khi parse xong) -->
+                <div id="excel-preview-wrap" style="display:none">
+                    <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
+                        <span id="excel-summary" class="small"></span>
+                        <span class="text-muted small">Bạn có thể sửa trực tiếp trước khi xác nhận.</span>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered align-middle mb-2" id="excel-preview-table">
+                            <thead class="table-light">
+                                <tr>
+                                    <th style="width:40px">#</th>
+                                    <th>Mã số <span class="text-danger">*</span></th>
+                                    <th>Họ tên <span class="text-danger">*</span></th>
+                                    <th style="width:160px">Vai trò <span class="text-danger">*</span></th>
+                                    <th>Mật khẩu</th>
+                                    <th style="width:200px">Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody id="excel-preview-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex gap-2 align-items-center">
+                        <button type="button" class="btn btn-phenikaa btn-sm" id="confirm-import-btn">
+                            <i class="bi bi-check2-circle me-1"></i>Xác nhận nhập
+                        </button>
+                        <div id="excel-import-status" class="small ms-1"></div>
+                    </div>
+                    <!-- Kết quả import -->
+                    <div id="excel-result" class="mt-3" style="display:none">
+                        <h6 class="fw-bold small">Kết quả nhập:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light">
+                                    <tr><th>Mã số</th><th>Kết quả</th></tr>
+                                </thead>
+                                <tbody id="excel-result-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div><!-- /tab-content -->
+    </div><!-- /card -->
+
+    <!-- ===== BẢNG NGƯỜI DÙNG ===== -->
     <div class="card table-card">
-        <!-- Tìm kiếm / lọc lồng ngay trong bảng người dùng -->
         <div class="card-header bg-white">
             <form th:action="@{/admin/users}" method="get" class="row g-2 align-items-end">
                 <div class="col-md-6">
                     <label class="form-label small text-muted mb-1">Tìm theo mã số / họ tên</label>
-                    <input type="text" name="keyword" class="form-control form-control-sm" th:value="${keyword}" placeholder="Nhập từ khoá...">
+                    <input type="text" name="keyword" class="form-control form-control-sm"
+                           th:value="${keyword}" placeholder="Nhập từ khoá...">
                 </div>
                 <div class="col-md-4">
                     <label class="form-label small text-muted mb-1">Lọc theo vai trò</label>
                     <select name="role" class="form-select form-select-sm">
                         <option value="">-- Tất cả vai trò --</option>
-                        <option th:each="r : ${roles}" th:value="${r}" th:text="${r}"
+                        <option th:each="r : ${roles}" th:value="${r}"
+                                th:text="${r.name() == 'STUDENT' ? 'Sinh viên' :
+                                           r.name() == 'LECTURER' ? 'Giảng viên' :
+                                           r.name() == 'RESEARCHER' ? 'Nghiên cứu viên' :
+                                           r.name() == 'LIBRARIAN' ? 'Thủ thư' :
+                                           r.name() == 'ADMIN' ? 'Admin' : r.name()}"
                                 th:selected="${selectedRole != null and selectedRole == r}"></option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex gap-2">
-                    <button type="submit" class="btn btn-phenikaa btn-sm flex-fill"><i class="bi bi-search me-1"></i>Tìm</button>
-                    <a th:href="@{/admin/users}" class="btn btn-outline-secondary btn-sm"><i class="bi bi-x-lg"></i></a>
+                    <button type="submit" class="btn btn-phenikaa btn-sm flex-fill">
+                        <i class="bi bi-search me-1"></i>Tìm
+                    </button>
+                    <a th:href="@{/admin/users}" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-x-lg"></i>
+                    </a>
                 </div>
             </form>
         </div>
         <table class="table table-hover align-middle mb-0">
             <thead>
-                <tr><th>Mã số</th><th>Họ tên</th><th>Vai trò</th><th>Trạng thái thẻ</th><th>Ngày tạo</th><th>Hành động</th></tr>
+                <tr>
+                    <th>Mã số</th><th>Họ tên</th><th>Vai trò</th>
+                    <th>Trạng thái thẻ</th><th>Ngày tạo</th><th>Hành động</th>
+                </tr>
             </thead>
             <tbody>
                 <th:block th:each="u : ${users}">
@@ -67,23 +235,33 @@
                     <td class="fw-semibold" th:text="${u.fullName}"></td>
                     <td>
                         <span th:switch="${u.role.name()}">
-                            <span th:case="'STUDENT'" class="badge bg-info text-dark">Sinh viên</span>
-                            <span th:case="'LECTURER'" class="badge bg-primary">Giảng viên</span>
+                            <span th:case="'STUDENT'"    class="badge bg-info text-dark">Sinh viên</span>
+                            <span th:case="'LECTURER'"   class="badge bg-primary">Giảng viên</span>
                             <span th:case="'RESEARCHER'" class="badge" style="background:#7c3aed">Nghiên cứu viên</span>
-                            <span th:case="'LIBRARIAN'" class="badge bg-secondary">Thủ thư</span>
-                            <span th:case="'ADMIN'" class="badge bg-dark">Admin</span>
+                            <span th:case="'LIBRARIAN'"  class="badge bg-secondary">Thủ thư</span>
+                            <span th:case="'ADMIN'"      class="badge bg-dark">Admin</span>
                         </span>
                     </td>
                     <td>
-                        <span class="badge bg-success" th:if="${u.cardStatus.name() == 'ACTIVE'}"><i class="bi bi-check-circle me-1"></i>Hoạt động</span>
-                        <span class="badge bg-danger" th:if="${u.cardStatus.name() == 'LOCKED'}"><i class="bi bi-lock-fill me-1"></i>Đang khoá</span>
+                        <span class="badge bg-success" th:if="${u.cardStatus.name() == 'ACTIVE'}">
+                            <i class="bi bi-check-circle me-1"></i>Hoạt động
+                        </span>
+                        <span class="badge bg-danger" th:if="${u.cardStatus.name() == 'LOCKED'}">
+                            <i class="bi bi-lock-fill me-1"></i>Đang khoá
+                        </span>
                     </td>
-                    <td class="small text-muted" th:text="${u.createdAt != null ? #temporals.format(u.createdAt, 'dd/MM/yyyy') : '--'}"></td>
+                    <td class="small text-muted"
+                        th:text="${u.createdAt != null ? #temporals.format(u.createdAt,'dd/MM/yyyy') : '--'}"></td>
                     <td>
                         <div class="d-flex gap-1 flex-wrap">
                             <button class="btn btn-outline-primary btn-sm" type="button"
-                                    data-bs-toggle="collapse" th:data-bs-target="'#edit' + ${u.id}"><i class="bi bi-pencil"></i></button>
-                            <form th:if="${u.role.name() != 'ADMIN'}" th:action="@{/admin/users/{id}/toggle-status(id=${u.id})}" method="post" class="d-inline">
+                                    data-bs-toggle="collapse"
+                                    th:data-bs-target="'#edit' + ${u.id}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <form th:if="${u.role.name() != 'ADMIN'}"
+                                  th:action="@{/admin/users/{id}/toggle-status(id=${u.id})}" method="post"
+                                  class="d-inline">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <button type="submit" class="btn btn-sm"
                                         th:classappend="${u.cardStatus.name() == 'ACTIVE'} ? 'btn-outline-warning' : 'btn-outline-success'"
@@ -92,10 +270,14 @@
                                     <i th:class="${u.cardStatus.name() == 'ACTIVE'} ? 'bi bi-lock' : 'bi bi-unlock'"></i>
                                 </button>
                             </form>
-                            <form th:if="${u.role.name() != 'ADMIN'}" th:action="@{/admin/users/{id}/delete(id=${u.id})}" method="post" class="d-inline">
+                            <form th:if="${u.role.name() != 'ADMIN'}"
+                                  th:action="@{/admin/users/{id}/delete(id=${u.id})}" method="post"
+                                  class="d-inline">
                                 <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
                                 <button type="submit" class="btn btn-outline-danger btn-sm" title="Xoá"
-                                        onclick="return confirm('Xoá tài khoản này? (chỉ xoá được khi chưa có lịch sử mượn)')"><i class="bi bi-trash3"></i></button>
+                                        onclick="return confirm('Xoá tài khoản này? (chỉ xoá được khi chưa có lịch sử mượn)')">
+                                    <i class="bi bi-trash3"></i>
+                                </button>
                             </form>
                         </div>
                     </td>
@@ -105,25 +287,41 @@
                     <td colspan="6" class="bg-light">
                         <div class="row g-3 py-2">
                             <div class="col-md-6">
-                                <form th:action="@{/admin/users/{id}/update(id=${u.id})}" method="post" class="row g-2 align-items-end">
+                                <form th:action="@{/admin/users/{id}/update(id=${u.id})}" method="post"
+                                      class="row g-2 align-items-end">
                                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                    <div class="col-6"><label class="form-label small text-muted">Họ tên</label>
-                                        <input type="text" name="fullName" class="form-control form-control-sm" th:value="${u.fullName}" required></div>
-                                    <div class="col-4"><label class="form-label small text-muted">Vai trò</label>
+                                    <div class="col-6">
+                                        <label class="form-label small text-muted">Họ tên</label>
+                                        <input type="text" name="fullName" class="form-control form-control-sm"
+                                               th:value="${u.fullName}" required>
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label small text-muted">Vai trò</label>
                                         <select name="role" class="form-select form-select-sm">
-                                            <option th:each="r : ${roles}" th:value="${r}" th:text="${r}" th:selected="${u.role == r}"></option>
+                                            <option th:each="r : ${roles}" th:value="${r}" th:text="${r}"
+                                                    th:selected="${u.role == r}"></option>
                                         </select>
                                     </div>
-                                    <div class="col-2"><button type="submit" class="btn btn-primary btn-sm w-100">Lưu</button></div>
+                                    <div class="col-2">
+                                        <button type="submit" class="btn btn-primary btn-sm w-100">Lưu</button>
+                                    </div>
                                 </form>
                             </div>
                             <div class="col-md-6">
-                                <form th:action="@{/admin/users/{id}/reset-password(id=${u.id})}" method="post" class="row g-2 align-items-end"
+                                <form th:action="@{/admin/users/{id}/reset-password(id=${u.id})}" method="post"
+                                      class="row g-2 align-items-end"
                                       onsubmit="return confirm('Đặt lại mật khẩu cho tài khoản này?')">
                                     <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                                    <div class="col-8"><label class="form-label small text-muted">Mật khẩu mới (≥ 6 ký tự)</label>
-                                        <input type="text" name="password" class="form-control form-control-sm" required minlength="6"></div>
-                                    <div class="col-4"><button type="submit" class="btn btn-outline-secondary btn-sm w-100"><i class="bi bi-key me-1"></i>Đặt lại</button></div>
+                                    <div class="col-8">
+                                        <label class="form-label small text-muted">Mật khẩu mới (≥ 6 ký tự)</label>
+                                        <input type="text" name="password" class="form-control form-control-sm"
+                                               required minlength="6">
+                                    </div>
+                                    <div class="col-4">
+                                        <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
+                                            <i class="bi bi-key me-1"></i>Đặt lại
+                                        </button>
+                                    </div>
                                 </form>
                             </div>
                         </div>
@@ -133,9 +331,265 @@
             </tbody>
         </table>
     </div>
+
 </main>
 
 <footer th:replace="~{fragments/common :: footer}"></footer>
 <th:block th:replace="~{fragments/common :: scripts}"></th:block>
+
+<script>
+const CSRF = document.getElementById('js-csrf').dataset.token;
+const ROLES = [
+    {value:'STUDENT',    label:'Sinh viên'},
+    {value:'LECTURER',   label:'Giảng viên'},
+    {value:'RESEARCHER', label:'Nghiên cứu viên'},
+    {value:'LIBRARIAN',  label:'Thủ thư'}
+];
+
+function roleSelect(selected) {
+    return '<select class="form-select form-select-sm">' +
+        ROLES.map(r =>
+            '<option value="' + r.value + '"' + (r.value === selected ? ' selected' : '') + '>' + r.label + '</option>'
+        ).join('') +
+        '</select>';
+}
+
+function escHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB 2 – THÊM HÀNG LOẠT (bảng nhập tay)
+// ═══════════════════════════════════════════════════════
+let batchRowCount = 0;
+
+function addBatchRow(data) {
+    batchRowCount++;
+    const idx = batchRowCount;
+    const tr  = document.createElement('tr');
+    tr.dataset.rowIdx = idx;
+    tr.innerHTML =
+        '<td class="text-muted small text-center">' + idx + '</td>' +
+        '<td><input type="text" class="form-control form-control-sm b-code" placeholder="Mã số"></td>' +
+        '<td><input type="text" class="form-control form-control-sm b-name" placeholder="Họ tên"></td>' +
+        '<td>' + roleSelect(data && data.role ? data.role : 'STUDENT') + '</td>' +
+        '<td><input type="text" class="form-control form-control-sm b-pass" placeholder="Mặc định: password123"></td>' +
+        '<td class="text-center">' +
+            '<button type="button" class="btn btn-outline-danger btn-sm py-0 px-1 del-batch-row" title="Xoá hàng">' +
+            '<i class="bi bi-trash3"></i></button>' +
+        '</td>';
+    if (data) {
+        tr.querySelector('.b-code').value = data.studentCode || '';
+        tr.querySelector('.b-name').value = data.fullName    || '';
+        tr.querySelector('.b-pass').value = data.password    || '';
+    }
+    document.getElementById('batch-body').appendChild(tr);
+}
+
+// Bắt đầu với 3 hàng trống
+addBatchRow(); addBatchRow(); addBatchRow();
+
+document.getElementById('add-batch-row').addEventListener('click', function() { addBatchRow(); });
+
+document.getElementById('batch-body').addEventListener('click', function(e) {
+    const btn = e.target.closest('.del-batch-row');
+    if (btn) btn.closest('tr').remove();
+});
+
+document.getElementById('save-batch').addEventListener('click', async function() {
+    const rows = [];
+    document.querySelectorAll('#batch-body tr').forEach(function(tr) {
+        const code = tr.querySelector('.b-code').value.trim();
+        const name = tr.querySelector('.b-name').value.trim();
+        const role = tr.querySelector('select').value;
+        const pass = tr.querySelector('.b-pass').value.trim();
+        if (!code && !name) return; // bỏ qua hàng trống hoàn toàn
+        rows.push({studentCode: code, fullName: name, role: role, password: pass});
+    });
+    if (!rows.length) {
+        setBatchStatus('Chưa có dữ liệu để lưu.', false); return;
+    }
+    setBatchStatus('<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...', null);
+    try {
+        const resp = await fetch('/admin/users/batch', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRF-TOKEN': CSRF},
+            body: JSON.stringify(rows)
+        });
+        const data = await resp.json();
+        showBatchResult(data.results);
+        setBatchStatus(
+            '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + data.success + ' thành công</span>' +
+            (data.failed > 0 ? '  <span class="text-danger ms-2"><i class="bi bi-x-circle me-1"></i>' + data.failed + ' lỗi</span>' : ''),
+            null
+        );
+    } catch (err) {
+        setBatchStatus('Lỗi kết nối: ' + err.message, false);
+    }
+});
+
+function setBatchStatus(html, ok) {
+    const el = document.getElementById('batch-status');
+    el.innerHTML = ok === false
+        ? '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>' + html + '</span>'
+        : html;
+}
+
+function showBatchResult(results) {
+    const wrap = document.getElementById('batch-result');
+    const tbody = document.getElementById('batch-result-body');
+    tbody.innerHTML = '';
+    (results || []).forEach(function(r) {
+        const tr = document.createElement('tr');
+        tr.className = r.ok ? 'table-success' : 'table-danger';
+        tr.innerHTML =
+            '<td><code>' + escHtml(r.studentCode || '') + '</code></td>' +
+            '<td>' + (r.ok
+                ? '<i class="bi bi-check-circle text-success me-1"></i>'
+                : '<i class="bi bi-x-circle text-danger me-1"></i>') +
+            escHtml(r.message) + '</td>';
+        tbody.appendChild(tr);
+    });
+    wrap.style.display = '';
+}
+
+// ═══════════════════════════════════════════════════════
+// TAB 3 – IMPORT EXCEL
+// ═══════════════════════════════════════════════════════
+document.getElementById('preview-excel-btn').addEventListener('click', async function() {
+    const fileInput = document.getElementById('excel-file');
+    if (!fileInput.files.length) {
+        setExcelStatus('Vui lòng chọn file trước.', false); return;
+    }
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('_csrf', CSRF);
+
+    setExcelStatus('<span class="spinner-border spinner-border-sm me-1"></span>Đang đọc file...', null);
+    document.getElementById('excel-preview-wrap').style.display = 'none';
+    document.getElementById('excel-result').style.display = 'none';
+
+    try {
+        const resp = await fetch('/admin/users/import-preview', {method:'POST', body: formData});
+        const data = await resp.json();
+        if (!data.ok) {
+            setExcelStatus(data.message || 'Không đọc được file.', false); return;
+        }
+        renderExcelPreview(data.rows);
+        document.getElementById('excel-summary').innerHTML =
+            'Tổng <strong>' + data.rows.length + '</strong> hàng — ' +
+            '<span class="text-success fw-semibold">' + data.validCount + ' hợp lệ</span>, ' +
+            '<span class="text-danger fw-semibold">' + data.invalidCount + ' có lỗi</span>';
+        document.getElementById('excel-preview-wrap').style.display = '';
+        setExcelStatus('', null);
+    } catch (err) {
+        setExcelStatus('Lỗi: ' + err.message, false);
+    }
+});
+
+function renderExcelPreview(rows) {
+    const tbody = document.getElementById('excel-preview-body');
+    tbody.innerHTML = '';
+    rows.forEach(function(row, i) {
+        const tr = document.createElement('tr');
+        if (!row.valid) tr.classList.add('table-warning');
+        tr.dataset.previewIdx = i;
+        tr.innerHTML =
+            '<td class="text-muted small text-center">' + (i + 1) + '</td>' +
+            '<td><input type="text" class="form-control form-control-sm ep-code" value="' + escHtml(row.studentCode) + '" placeholder="Mã số"></td>' +
+            '<td><input type="text" class="form-control form-control-sm ep-name" value="' + escHtml(row.fullName)    + '" placeholder="Họ tên"></td>' +
+            '<td>' + roleSelect(row.role) + '</td>' +
+            '<td><input type="text" class="form-control form-control-sm ep-pass" value="' + escHtml(row.password)    + '" placeholder="Mặc định: password123"></td>' +
+            '<td class="small">' + statusBadges(row.errors) + '</td>';
+        tbody.appendChild(tr);
+    });
+}
+
+function statusBadges(errors) {
+    if (!errors || !errors.length) {
+        return '<span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>Hợp lệ</span>';
+    }
+    return errors.map(function(e) {
+        return '<span class="badge bg-danger me-1">' + escHtml(e) + '</span>';
+    }).join('');
+}
+
+document.getElementById('confirm-import-btn').addEventListener('click', async function() {
+    const rows = [];
+    document.querySelectorAll('#excel-preview-body tr').forEach(function(tr) {
+        rows.push({
+            studentCode: tr.querySelector('.ep-code').value.trim(),
+            fullName:    tr.querySelector('.ep-name').value.trim(),
+            role:        tr.querySelector('select').value,
+            password:    tr.querySelector('.ep-pass').value.trim()
+        });
+    });
+    if (!rows.length) {
+        setExcelImportStatus('Không có dữ liệu để nhập.', false); return;
+    }
+    setExcelImportStatus('<span class="spinner-border spinner-border-sm me-1"></span>Đang nhập...', null);
+    try {
+        const resp = await fetch('/admin/users/batch', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json','X-CSRF-TOKEN': CSRF},
+            body: JSON.stringify(rows)
+        });
+        const data = await resp.json();
+        showExcelResult(data.results);
+        setExcelImportStatus(
+            '<span class="text-success"><i class="bi bi-check-circle me-1"></i>' + data.success + ' thành công</span>' +
+            (data.failed > 0 ? '  <span class="text-danger ms-2"><i class="bi bi-x-circle me-1"></i>' + data.failed + ' lỗi</span>' : ''),
+            null
+        );
+        // Cập nhật lại badge trạng thái trên preview table
+        const previewRows = document.querySelectorAll('#excel-preview-body tr');
+        data.results.forEach(function(r, i) {
+            if (previewRows[i]) {
+                previewRows[i].querySelector('td:last-child').innerHTML =
+                    r.ok
+                    ? '<span class="badge bg-success"><i class="bi bi-check-lg me-1"></i>Đã tạo</span>'
+                    : '<span class="badge bg-danger">' + escHtml(r.message) + '</span>';
+                previewRows[i].className = r.ok ? 'table-success' : 'table-danger';
+            }
+        });
+    } catch (err) {
+        setExcelImportStatus('Lỗi kết nối: ' + err.message, false);
+    }
+});
+
+function showExcelResult(results) {
+    const wrap  = document.getElementById('excel-result');
+    const tbody = document.getElementById('excel-result-body');
+    tbody.innerHTML = '';
+    (results || []).forEach(function(r) {
+        const tr = document.createElement('tr');
+        tr.className = r.ok ? 'table-success' : 'table-danger';
+        tr.innerHTML =
+            '<td><code>' + escHtml(r.studentCode || '') + '</code></td>' +
+            '<td>' + (r.ok
+                ? '<i class="bi bi-check-circle text-success me-1"></i>'
+                : '<i class="bi bi-x-circle text-danger me-1"></i>') +
+            escHtml(r.message) + '</td>';
+        tbody.appendChild(tr);
+    });
+    wrap.style.display = '';
+}
+
+function setExcelStatus(html, ok) {
+    const el = document.getElementById('excel-status');
+    el.innerHTML = ok === false
+        ? '<span class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i>' + html + '</span>'
+        : '<span class="small">' + html + '</span>';
+}
+
+function setExcelImportStatus(html, ok) {
+    const el = document.getElementById('excel-import-status');
+    el.innerHTML = ok === false
+        ? '<span class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i>' + html + '</span>'
+        : '<span class="small">' + html + '</span>';
+}
+</script>
+
 </body>
 </html>

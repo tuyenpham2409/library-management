@@ -244,21 +244,6 @@ public class ClientController {
         return "client/my-loans";
     }
 
-    @PostMapping("/loans/{id}/pickup")
-    public String confirmPickup(@PathVariable Long id, @RequestParam String code,
-                                Authentication auth, RedirectAttributes redirectAttrs) {
-        User user = getCurrentUser(auth);
-        boolean ok = loanService.confirmPickup(id, user, code);
-        if (ok) {
-            redirectAttrs.addFlashAttribute("success",
-                    "Xác nhận nhận sách thành công! Đơn đã chuyển sang Đang mượn.");
-        } else {
-            redirectAttrs.addFlashAttribute("error",
-                    "Mã mượn không đúng hoặc đơn không hợp lệ. Vui lòng kiểm tra lại.");
-        }
-        return "redirect:/client/my-loans";
-    }
-
     @PostMapping("/loans/{id}/cancel")
     public String cancelOwnLoan(@PathVariable Long id, Authentication auth,
                                 RedirectAttributes redirectAttrs) {
@@ -285,12 +270,16 @@ public class ClientController {
             redirectAttrs.addFlashAttribute("error", "Bạn không được cấp quyền gia hạn.");
             return "redirect:/client/my-loans";
         }
-        boolean success = loanService.renewBook(detailId, user);
-        if (success) {
-            redirectAttrs.addFlashAttribute("success", "Gia hạn thành công!");
-        } else {
+        try {
+            String error = loanService.renewBook(detailId, user);
+            if (error == null) {
+                redirectAttrs.addFlashAttribute("success", "Gia hạn thành công!");
+            } else {
+                redirectAttrs.addFlashAttribute("error", error);
+            }
+        } catch (Exception e) {
             redirectAttrs.addFlashAttribute("error",
-                    "Không thể gia hạn. Bạn đã hết số lần gia hạn hoặc không đủ điều kiện.");
+                    "Gia hạn thất bại: " + e.getMessage() + ". Vui lòng thử lại hoặc liên hệ thủ thư.");
         }
         return "redirect:/client/my-loans";
     }

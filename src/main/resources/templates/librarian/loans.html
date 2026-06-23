@@ -32,13 +32,33 @@
            th:classappend="${selectedStatus != null and selectedStatus.name() == 'CANCELLED'} ? 'btn-phenikaa' : 'btn-outline-secondary'">❌ Đã huỷ</a>
     </div>
 
+    <!-- SEARCH -->
+    <div class="mb-3">
+        <div class="input-group">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input id="awaiting-search" type="text" class="form-control"
+                   placeholder="Tìm theo mã phiếu, mã mượn hoặc mã sinh viên..."
+                   autocomplete="off">
+            <button class="btn btn-outline-secondary" type="button" id="awaiting-search-clear"
+                    style="display:none">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <div id="awaiting-no-result" class="text-muted small mt-2" style="display:none">
+            Không tìm thấy đơn nào khớp.
+        </div>
+    </div>
+
     <div class="empty-state" th:if="${loans.isEmpty()}">
         <div class="empty-state-icon">📭</div>
         <h3 class="h5 text-muted">Không có đơn nào</h3>
     </div>
 
     <!-- ===== DANH SÁCH ĐƠN ===== -->
-    <div th:each="loan : ${loans}" class="card mb-3">
+    <div th:each="loan : ${loans}" class="card mb-3 js-loan-card"
+         th:data-loan-id="${loan.id}"
+         th:data-pickup-code="${loan.pickupCode != null ? loan.pickupCode : ''}"
+         th:data-student-code="${loan.user.studentCode}">
 
         <!-- HEADER -->
         <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2 py-3">
@@ -74,13 +94,25 @@
                     </div>
                 </div>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
                 <button class="btn btn-outline-secondary btn-sm" type="button"
                         data-bs-toggle="collapse"
                         th:data-bs-target="'#loan' + ${loan.id}">
                     <i class="bi bi-list-ul me-1"></i>Chi tiết & lịch sử
                 </button>
-                <!-- Huỷ đơn (redirect có anchor để giữ vị trí) -->
+                <!-- Xác nhận mượn -->
+                <form th:if="${loan.status.name() == 'AWAITING_PICKUP'
+                               and @permissionService.has(currentUser.role,
+                                   T(com.library.entity.Permission).LOAN_CANCEL)}"
+                      th:action="@{/librarian/loans/confirm-pickup}" method="post">
+                    <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
+                    <input type="hidden" name="code" th:value="${loan.pickupCode}">
+                    <button type="submit" class="btn btn-success btn-sm"
+                            onclick="return confirm('Xác nhận bàn giao sách cho đơn này?')">
+                        <i class="bi bi-check-circle me-1"></i>Xác nhận mượn
+                    </button>
+                </form>
+                <!-- Huỷ đơn -->
                 <form th:if="${loan.status.name() == 'AWAITING_PICKUP'
                                and @permissionService.has(currentUser.role,
                                    T(com.library.entity.Permission).LOAN_CANCEL)}"
@@ -238,30 +270,71 @@
                 <h6 class="fw-bold text-muted small mt-4 mb-2">
                     <i class="bi bi-clock-history me-1"></i>Lịch sử
                 </h6>
-                <ul class="list-unstyled small mb-0 ps-2">
-                    <li>📝 Tạo đơn —
+                <ul class="list-unstyled small mb-0 ps-2 history-timeline">
+                    <!-- Tạo đơn -->
+                    <li>
+                        <span class="history-icon">📝</span>
+                        <span class="fw-semibold">Tạo đơn</span> —
                         <span th:text="${#temporals.format(loan.createdAt,'dd/MM/yyyy HH:mm')}"></span>
                     </li>
-                    <li th:if="${loan.pickedUpAt != null}">📦 Nhận sách —
+                    <!-- Nhận sách -->
+                    <li th:if="${loan.pickedUpAt != null}">
+                        <span class="history-icon">📦</span>
+                        <span class="fw-semibold">Nhận sách</span> —
                         <span th:text="${#temporals.format(loan.pickedUpAt,'dd/MM/yyyy HH:mm')}"></span>
                     </li>
-                    <li th:each="d : ${loan.loanDetails}" th:if="${d.returnDate != null}">
-                        ↩️ Trả '<span th:text="${d.book.title}"></span>' —
-                        <span th:text="${#temporals.format(d.returnDate,'dd/MM/yyyy HH:mm')}"></span>
-                        <span class="text-muted"
-                              th:if="${d.conditionStatus != null and d.conditionStatus.name() == 'DAMAGED'}">(Hỏng)</span>
-                        <span th:if="${d.hasFine()}"
-                              th:text="'· Phí ' + ${#numbers.formatDecimal(d.fineAmount,0,'COMMA',0,'POINT')} + 'đ — ' + (${d.finePaid} ? 'đã thu' : 'chưa thu')"></span>
+                    <!-- Sự kiện theo từng cuốn: gia hạn → trả → thu phí -->
+                    <th:block th:each="d : ${loan.loanDetails}">
+                        <!-- Gia hạn (mỗi lần) -->
+                        <li th:each="r : ${d.renewals}">
+                            <span class="history-icon">🔄</span>
+                            <span class="fw-semibold">Gia hạn</span>
+                            '<span th:text="${d.book.title}"></span>' →
+                            hạn mới <span class="text-primary"
+                                          th:text="${#temporals.format(r.newDueDate,'dd/MM/yyyy')}"></span> —
+                            <span th:text="${#temporals.format(r.renewedAt,'dd/MM/yyyy HH:mm')}"></span>
+                        </li>
+                        <!-- Trả sách -->
+                        <li th:if="${d.returnDate != null}">
+                            <span class="history-icon">↩️</span>
+                            <span class="fw-semibold">Trả sách</span>
+                            '<span th:text="${d.book.title}"></span>' —
+                            <span th:text="${#temporals.format(d.returnDate,'dd/MM/yyyy HH:mm')}"></span>
+                            <span class="text-warning fw-semibold"
+                                  th:if="${d.conditionStatus != null and d.conditionStatus.name() == 'DAMAGED'}">· Hỏng</span>
+                            <span class="text-danger"
+                                  th:if="${d.hasFine()}"
+                                  th:text="'· Phí ' + ${#numbers.formatDecimal(d.fineAmount,0,'COMMA',0,'POINT')} + 'đ'"></span>
+                        </li>
+                        <!-- Thu phí -->
+                        <li th:if="${d.hasFine() and d.finePaid and d.finePaidAt != null}">
+                            <span class="history-icon">💰</span>
+                            <span class="fw-semibold">Thu phí</span>
+                            '<span th:text="${d.book.title}"></span>'
+                            (<span class="text-danger"
+                                   th:text="${#numbers.formatDecimal(d.fineAmount,0,'COMMA',0,'POINT')} + 'đ'"></span>) —
+                            <span th:text="${#temporals.format(d.finePaidAt,'dd/MM/yyyy HH:mm')}"></span>
+                        </li>
+                    </th:block>
+                    <!-- Hoàn thành -->
+                    <li th:if="${loan.status.name() == 'COMPLETED'}" class="text-success fw-semibold">
+                        <span class="history-icon">✅</span>
+                        Đơn hoàn thành
+                        <span th:if="${loan.completedAt != null}"
+                              th:text="'— ' + ${#temporals.format(loan.completedAt,'dd/MM/yyyy HH:mm')}"></span>
                     </li>
-                    <li th:if="${loan.status.name() == 'COMPLETED'}" class="text-success">
-                        ✅ Đơn đã hoàn thành
-                    </li>
-                    <li th:if="${loan.status.name() == 'CANCELLED'}" class="text-danger">
-                        ❌ Đã huỷ
-                        <span th:if="${loan.cancelledByRole != null}"
+                    <!-- Huỷ -->
+                    <li th:if="${loan.status.name() == 'CANCELLED'}" class="text-danger fw-semibold">
+                        <span class="history-icon">❌</span>
+                        Đã huỷ
+                        <span th:if="${loan.cancelledAt != null}"
+                              th:text="'— ' + ${#temporals.format(loan.cancelledAt,'dd/MM/yyyy HH:mm')}"></span>
+                        <span class="fw-normal text-muted"
+                              th:if="${loan.cancelledByRole != null}"
                               th:text="' (' + ${loan.cancelledByRole} + ')'"></span>
-                        <span th:if="${loan.cancelReason != null}"
-                              th:text="' — Lý do: ' + ${loan.cancelReason}"></span>
+                        <span class="fw-normal"
+                              th:if="${loan.cancelReason != null}"
+                              th:text="' · Lý do: ' + ${loan.cancelReason}"></span>
                     </li>
                 </ul>
 
@@ -280,6 +353,37 @@ function getCsrf() {
     return document.getElementById('js-csrf')?.dataset.token || '';
 }
 
+// ─── Helpers lịch sử ──────────────────────────────────────────────────────────
+function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function appendHistory(timeline, html) {
+    if (!timeline) return;
+    const li = document.createElement('li');
+    li.innerHTML = html;
+    // Chèn trước entry "Hoàn thành" hoặc "Đã huỷ" nếu đang hiển thị, không thì nối cuối
+    const terminalLi = Array.from(timeline.querySelectorAll('li')).find(function(el) {
+        return el.classList.contains('text-success') || el.classList.contains('text-danger');
+    });
+    if (terminalLi) {
+        timeline.insertBefore(li, terminalLi);
+    } else {
+        timeline.appendChild(li);
+    }
+}
+
+function appendCompleted(loanId, completedAtFormatted) {
+    const timeline = document.querySelector('#loan' + loanId + ' .history-timeline');
+    if (!timeline || timeline.querySelector('li.text-success')) return;
+    const li = document.createElement('li');
+    li.className = 'text-success fw-semibold';
+    li.innerHTML = '<span class="history-icon">✅</span>Đơn hoàn thành' +
+        (completedAtFormatted ? ' <span class="fw-normal">— ' + completedAtFormatted + '</span>' : '');
+    timeline.appendChild(li);
+}
+
 // ─── Mở đúng collapse sau redirect có anchor (huỷ đơn) ───────────────────────
 window.addEventListener('DOMContentLoaded', function () {
     const hash = window.location.hash;
@@ -293,6 +397,37 @@ window.addEventListener('DOMContentLoaded', function () {
         }
     }
 });
+
+// ─── Search đơn chờ lấy theo mã mượn hoặc mã sinh viên ───────────────────────
+(function () {
+    const input   = document.getElementById('awaiting-search');
+    const clearBtn = document.getElementById('awaiting-search-clear');
+    const noResult = document.getElementById('awaiting-no-result');
+    if (!input) return;
+
+    function doFilter() {
+        const q = input.value.trim().toUpperCase();
+        clearBtn.style.display = q ? '' : 'none';
+        const cards = document.querySelectorAll('.js-loan-card');
+        let visible = 0;
+        cards.forEach(function (card) {
+            const loanId  = (card.dataset.loanId     || '').toUpperCase();
+            const code    = (card.dataset.pickupCode  || '').toUpperCase();
+            const student = (card.dataset.studentCode || '').toUpperCase();
+            const match = !q || loanId.includes(q) || code.includes(q) || student.includes(q);
+            card.style.display = match ? '' : 'none';
+            if (match) visible++;
+        });
+        noResult.style.display = (q && visible === 0) ? '' : 'none';
+    }
+
+    input.addEventListener('input', doFilter);
+    clearBtn.addEventListener('click', function () {
+        input.value = '';
+        doFilter();
+        input.focus();
+    });
+}());
 
 // ─── Checkbox "Đã trả?" bật/tắt select Tình trạng ───────────────────────────
 document.addEventListener('change', function (e) {
@@ -381,6 +516,7 @@ async function doSaveReturns(loanId, bar) {
                     badge.className  = 'badge ms-1 bg-success';
                     badge.textContent = 'Hoàn thành';
                 }
+                appendCompleted(loanId, data.completedAtFormatted || null);
                 bar.remove();
             }
         } else {
@@ -432,12 +568,28 @@ function updateDetailRow(r) {
             ? '<span class="badge bg-warning text-dark">Hỏng</span>'
             : '<span class="text-muted small">Tốt</span>';
     }
+
+    // Append "Trả sách" vào lịch sử
+    if (r.returnDateFormatted) {
+        const cardBody = row.closest('.card-body');
+        const timeline = cardBody ? cardBody.querySelector('.history-timeline') : null;
+        appendHistory(timeline,
+            '<span class="history-icon">↩️</span>' +
+            '<span class="fw-semibold">Trả sách</span> ' +
+            '\'' + escHtml(r.bookTitle) + '\' — ' +
+            r.returnDateFormatted +
+            (r.conditionDamaged ? ' <span class="text-warning fw-semibold">· Hỏng</span>' : '') +
+            (r.fine > 0 ? ' <span class="text-danger">· Phí ' + escHtml(r.fineFormatted) + '</span>' : '')
+        );
+    }
 }
 
 // ─── Thu phí (AJAX) ───────────────────────────────────────────────────────────
 async function doPayFine(btn) {
     btn.disabled = true;
     const detailId = btn.dataset.detailId;
+    const fineCell = btn.closest('.js-fine-cell');
+    const cardBody  = fineCell ? fineCell.closest('.card-body') : null;
     try {
         const resp = await fetch('/librarian/loans/details/' + detailId + '/pay-fine', {
             method:  'POST',
@@ -446,7 +598,7 @@ async function doPayFine(btn) {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const data = await resp.json();
         if (data.ok) {
-            const fineCell = btn.closest('.js-fine-cell');
+            // Cập nhật ô phí: thay nút bằng badge "Đã thu"
             if (fineCell) {
                 const fineSpan = fineCell.querySelector('span.text-danger');
                 const fineText = fineSpan ? fineSpan.textContent.trim() : '';
@@ -455,6 +607,29 @@ async function doPayFine(btn) {
                         ? '<span class="text-danger fw-semibold">' + fineText + '</span> '
                         : '') +
                     '<span class="badge bg-success ms-1">Đã thu</span>';
+            }
+            // Append "Thu phí" vào lịch sử
+            if (data.bookTitle && data.finePaidAtFormatted && cardBody) {
+                const timeline = cardBody.querySelector('.history-timeline');
+                appendHistory(timeline,
+                    '<span class="history-icon">💰</span>' +
+                    '<span class="fw-semibold">Thu phí</span> ' +
+                    '\'' + escHtml(data.bookTitle) + '\'' +
+                    ' (<span class="text-danger">' + escHtml(data.fineFormatted) + '</span>) — ' +
+                    data.finePaidAtFormatted
+                );
+            }
+            // Nếu đơn đã hoàn thành sau khi thu phí: cập nhật badge + xoá thanh thao tác
+            if (data.loanCompleted && data.loanId) {
+                const loanId = data.loanId;
+                const badge = document.getElementById('loan-badge-' + loanId);
+                if (badge) {
+                    badge.className   = 'badge ms-1 bg-success';
+                    badge.textContent = 'Hoàn thành';
+                }
+                appendCompleted(loanId, data.completedAtFormatted || null);
+                const bar = document.querySelector('.js-loan-actions[data-loan-id="' + loanId + '"]');
+                if (bar) bar.remove();
             }
         } else {
             btn.disabled = false;

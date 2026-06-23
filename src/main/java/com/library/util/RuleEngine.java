@@ -117,14 +117,26 @@ public class RuleEngine {
     }
 
     /**
-     * Kiểm tra có thể gia hạn không.
+     * Trả về lý do không thể gia hạn, hoặc null nếu được phép gia hạn.
      */
+    public String getRenewalDenyReason(LoanDetail detail, BorrowingRule rule) {
+        if (rule == null) return "chưa có quy tắc mượn cho loại tài liệu này";
+        int maxRenewals = rule.getMaxRenewals() == null ? 0 : rule.getMaxRenewals();
+        if (maxRenewals == 0) return "loại tài liệu này không cho phép gia hạn";
+        if (detail.getDueDate() != null && LocalDate.now().isAfter(detail.getDueDate())) {
+            long daysOver = ChronoUnit.DAYS.between(detail.getDueDate(), LocalDate.now());
+            return "sách đang quá hạn " + daysOver + " ngày, vui lòng trả sách trước";
+        }
+        int used = detail.getRenewalCount() == null ? 0 : detail.getRenewalCount();
+        if (used >= maxRenewals) {
+            return "đã sử dụng hết " + used + "/" + maxRenewals + " lần gia hạn cho phép";
+        }
+        return null;
+    }
+
+    /** Kiểm tra có thể gia hạn không (dùng getRenewalDenyReason nội bộ). */
     public boolean canRenew(LoanDetail detail, BorrowingRule rule) {
-        if (rule == null) return false;
-        if (rule.getMaxRenewals() == 0) return false;
-        if (detail.getDueDate() != null && LocalDate.now().isAfter(detail.getDueDate())) return false;
-        if (detail.getRenewalCount() == null) return true;
-        return detail.getRenewalCount() < rule.getMaxRenewals();
+        return getRenewalDenyReason(detail, rule) == null;
     }
 
     /**

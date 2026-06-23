@@ -154,6 +154,7 @@ INSERT INTO role_permissions (user_role, permission, granted) VALUES
 ('LIBRARIAN',  'BOOK_CREATE',       TRUE),
 ('LIBRARIAN',  'BOOK_UPDATE',       TRUE),
 ('LIBRARIAN',  'BOOK_DELETE',       TRUE),
+('LIBRARIAN',  'LOAN_CONFIRM_PICKUP', TRUE),
 ('LIBRARIAN',  'LOAN_RETURN',       TRUE),
 ('LIBRARIAN',  'LOAN_PAY_FINE',     TRUE),
 ('LIBRARIAN',  'LOAN_CANCEL',       TRUE),
@@ -173,8 +174,7 @@ INSERT INTO loans (id, user_id, created_at, pickup_code, pickup_deadline, picked
 (5, 11, '2026-03-10 09:00:00', 'CMP555', '2026-03-11 09:00:00', '2026-03-10 10:00:00', 'COMPLETED',       NULL, NULL, FALSE),
 (6, 15, '2026-04-01 09:00:00', 'FIN666', '2026-04-02 09:00:00', '2026-04-01 10:00:00', 'BORROWED',        NULL, NULL, FALSE),
 (7, 19, '2026-06-10 09:00:00', 'CNL777', '2026-06-11 09:00:00', NULL,                  'CANCELLED', 'Sách yêu cầu đang được kiểm kê, vui lòng mượn lại sau.', 'LIBRARIAN', FALSE),
-(8, 8,  '2026-06-09 09:00:00', 'CNL888', '2026-06-10 09:00:00', NULL,                  'CANCELLED', 'Bạn đọc tự huỷ',                                          'LECTURER',  FALSE),
-(9, 11, '2026-06-14 09:30:00', NULL,     NULL,                  '2026-06-14 09:30:00', 'BORROWED',        NULL, NULL, TRUE);
+(8, 8,  '2026-06-09 09:00:00', 'CNL888', '2026-06-10 09:00:00', NULL,                  'CANCELLED', 'Bạn đọc tự huỷ',                                         'LECTURER',  FALSE);
 
 ALTER TABLE loans ALTER COLUMN id RESTART WITH 100;
 
@@ -189,9 +189,7 @@ INSERT INTO loan_details (loan_id, book_id, due_date, return_date, renewal_count
 (5, 7,  '2026-08-07', '2026-03-20 09:00:00', 0, 'GOOD', 0,    TRUE,  'RETURNED'),
 (6, 8,  '2026-04-16', '2026-04-20 14:00:00', 0, 'GOOD', 8000, FALSE, 'RETURNED'),
 (7, 9,  NULL,         NULL,                  0, 'GOOD', 0,    FALSE, 'RESERVED'),
-(8, 24, NULL,         NULL,                  0, 'GOOD', 0,    FALSE, 'RESERVED'),
-(9, 22, '2026-06-14', NULL,                  0, 'GOOD', 0,    FALSE, 'BORROWING');
-
+(8, 24, NULL,         NULL,                  0, 'GOOD', 0,    FALSE, 'RESERVED');
 -- Trừ tồn kho cho sách đang được giữ chỗ / đang mượn / đang đọc tại chỗ
 UPDATE books SET available_copies = 2 WHERE id IN (1, 2, 3, 4, 5, 6);
 UPDATE books SET available_copies = 0 WHERE id = 22;

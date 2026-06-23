@@ -8,6 +8,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "loan_details")
@@ -47,6 +49,13 @@ public class LoanDetail {
     // Đã thu phí phạt hay chưa. Tự động true khi phí = 0; thủ thư bấm "Đã thu phí" khi phí > 0.
     @Column(name = "fine_paid", nullable = false)
     private Boolean finePaid = false;
+
+    @Column(name = "fine_paid_at")
+    private LocalDateTime finePaidAt;
+
+    @OneToMany(mappedBy = "loanDetail", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @OrderBy("renewedAt ASC")
+    private List<LoanRenewal> renewals = new ArrayList<>();
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)

@@ -37,22 +37,16 @@
                     <ul class="mb-0 small"><li th:each="d : ${loan.loanDetails}" th:text="${d.book.title}"></li></ul>
                 </div>
                 <hr>
-                <div class="d-flex flex-wrap gap-2 align-items-end justify-content-between">
-                    <form th:action="@{/client/loans/{id}/pickup(id=${loan.id})}" method="post" class="row g-2 align-items-end flex-grow-1">
-                        <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                        <div class="col-sm-5">
-                            <label class="form-label small text-muted">Nhập lại mã mượn để xác nhận đã nhận sách</label>
-                            <input type="text" name="code" class="form-control text-uppercase" placeholder="VD: QVWJ5C" required>
-                        </div>
-                        <div class="col-sm-auto">
-                            <button type="submit" class="btn btn-success"><i class="bi bi-check-lg me-1"></i>Tôi đã nhận sách</button>
-                        </div>
-                    </form>
+                <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+                    <div class="d-flex align-items-center gap-2 text-muted small">
+                        <i class="bi bi-info-circle text-primary fs-5"></i>
+                        <span>Mang sách ra quầy thủ thư và đọc mã trên cho thủ thư nhập để xác nhận bàn giao.</span>
+                    </div>
                     <!-- Bạn đọc tự huỷ (chỉ khi chưa nhận sách) -->
                     <form th:if="${canCancelOwn}" th:action="@{/client/loans/{id}/cancel(id=${loan.id})}" method="post"
                           onsubmit="return confirm('Huỷ đơn mượn này?')">
                         <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}">
-                        <button type="submit" class="btn btn-outline-danger"><i class="bi bi-x-lg me-1"></i>Huỷ đơn</button>
+                        <button type="submit" class="btn btn-outline-danger btn-sm"><i class="bi bi-x-lg me-1"></i>Huỷ đơn</button>
                     </form>
                 </div>
             </div>

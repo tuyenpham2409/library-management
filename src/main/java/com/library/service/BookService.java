@@ -49,6 +49,13 @@ public class BookService {
         return bookRepository.save(book);
     }
 
+    public List<Book> saveAll(List<BookForm> forms) {
+        return forms.stream()
+                .filter(f -> f.getTitle() != null && !f.getTitle().isBlank())
+                .map(this::save)
+                .toList();
+    }
+
     public Book update(Long id, BookForm form) {
         Book book = bookRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Book not found: " + id));

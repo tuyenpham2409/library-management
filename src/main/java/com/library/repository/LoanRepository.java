@@ -27,4 +27,6 @@ public interface LoanRepository extends JpaRepository<Loan, Long> {
     List<Loan> findByInHouseTrueAndStatusOrderByCreatedAtDesc(LoanStatus status);
 
     long countByStatus(LoanStatus status);
+
+    java.util.Optional<Loan> findByPickupCodeIgnoreCaseAndStatus(String pickupCode, LoanStatus status);
 }
